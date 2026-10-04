@@ -25,6 +25,19 @@ type tsMuxer struct {
 	codec string
 }
 
+func CanMux(root string, segment media.Segment) bool {
+	if segment.Path=="" { return false }
+	if segment.FramesPath=="" { segment.FramesPath=segment.Path+".frames.jsonl" }
+	videoPath,err:=safeStoragePath(root,segment.Path)
+	if err!=nil { return false }
+	framePath,err:=safeStoragePath(root,segment.FramesPath)
+	if err!=nil { return false }
+	videoInfo,err:=os.Stat(videoPath)
+	if err!=nil || !videoInfo.Mode().IsRegular() || videoInfo.Size()==0 { return false }
+	frameInfo,err:=os.Stat(framePath)
+	return err==nil && frameInfo.Mode().IsRegular() && frameInfo.Size()>0
+}
+
 func MuxSegmentTS(root string, segment media.Segment, w io.Writer) error {
 	if segment.Partial { return errors.New("cannot mux active partial segment") }
 	if segment.Path=="" { return errors.New("segment path is required") }
