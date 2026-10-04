@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/wfuzatto/Nvr/internal/config"
+	"github.com/wfuzatto/Nvr/internal/live"
 	"github.com/wfuzatto/Nvr/internal/media"
 	"github.com/wfuzatto/Nvr/internal/model"
 	"github.com/wfuzatto/Nvr/internal/rtsp"
@@ -31,6 +32,7 @@ type Dependencies struct {
 	SecretBox *security.SecretBox
 	Cameras store.CameraStore
 	Media *media.Manager
+	Live *live.Manager
 }
 
 type Server struct {
@@ -77,6 +79,19 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /api/v1/media/broker", s.auth(http.HandlerFunc(s.handleBrokerStats)))
 	s.mux.Handle("POST /api/v1/media/retention/run", s.auth(http.HandlerFunc(s.handleRetentionRun)))
 	s.mux.Handle("POST /api/v1/media/protect", s.auth(http.HandlerFunc(s.handleProtectSegment)))
+	s.mux.Handle("GET /api/v1/onvif/discover", s.auth(http.HandlerFunc(s.handleONVIFDiscover)))
+	s.mux.Handle("POST /api/v1/onvif/inspect", s.auth(http.HandlerFunc(s.handleONVIFInspect)))
+	s.mux.Handle("POST /api/v1/cameras/from-onvif", s.auth(http.HandlerFunc(s.handleCreateCameraFromONVIF)))
+	s.mux.Handle("POST /api/v1/cameras/{id}/onvif/sync", s.auth(http.HandlerFunc(s.handleONVIFSync)))
+	s.mux.Handle("GET /api/v1/cameras/{id}/ptz/status", s.auth(http.HandlerFunc(s.handlePTZStatus)))
+	s.mux.Handle("POST /api/v1/cameras/{id}/ptz/move", s.auth(http.HandlerFunc(s.handlePTZMove)))
+	s.mux.Handle("POST /api/v1/cameras/{id}/ptz/stop", s.auth(http.HandlerFunc(s.handlePTZStop)))
+	s.mux.Handle("POST /api/v1/cameras/{id}/live/session", s.auth(http.HandlerFunc(s.handleLiveSession)))
+	s.mux.HandleFunc("GET /api/v1/live/{id}/index.m3u8", s.handleLivePlaylist)
+	s.mux.HandleFunc("GET /api/v1/live/{id}/segment.ts", s.handleLiveSegment)
+	s.mux.Handle("POST /api/v1/cameras/{id}/playback/session", s.auth(http.HandlerFunc(s.handlePlaybackSession)))
+	s.mux.HandleFunc("GET /api/v1/playback/{id}/index.m3u8", s.handlePlaybackPlaylist)
+	s.mux.HandleFunc("GET /api/v1/playback/{id}/segment.ts", s.handlePlaybackSegment)
 	s.mux.Handle("/", webui.Handler())
 }
 
@@ -410,7 +425,7 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; style-src 'self'; script-src 'self'")
 		next.ServeHTTP(w, r)
 	})
 }

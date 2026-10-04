@@ -11,7 +11,7 @@ import (
 
 func TestRecorderRotatesOnKeyframe(t *testing.T) {
 	root := t.TempDir()
-	r, err := NewRecorder(root, "cam-1", "H264", 5*time.Second, [][]byte{{0x67,1},{0x68,2}})
+	r, err := NewRecorder(root, "cam-1", "H264", 90000, 5*time.Second, [][]byte{{0x67,1},{0x68,2}})
 	if err != nil { t.Fatal(err) }
 
 	start := time.Now().UTC()
@@ -22,8 +22,14 @@ func TestRecorderRotatesOnKeyframe(t *testing.T) {
 	completed, err := r.Write(rtsp.AccessUnit{Codec:"H264", Keyframe:true, ReceivedAt:start.Add(6*time.Second), Data:[]byte{0,0,0,1,0x65,3}})
 	if err != nil { t.Fatal(err) }
 	if completed == nil { t.Fatal("expected completed segment") }
-	if completed.Bytes == 0 || completed.SHA256 == "" { t.Fatalf("invalid segment: %+v", completed) }
+	if completed.Bytes == 0 || completed.SHA256 == "" || completed.FramesPath == "" { t.Fatalf("invalid segment: %+v", completed) }
 	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(completed.Path))); err != nil { t.Fatal(err) }
+	frameInfo, err := os.Stat(filepath.Join(root, filepath.FromSlash(completed.FramesPath)))
+	if err != nil { t.Fatal(err) }
+	wantIndexBytes := int64(FrameIndexHeaderSize + 2*FrameIndexRecordSize)
+	if frameInfo.Size() != wantIndexBytes {
+		t.Fatalf("frame index size=%d want=%d", frameInfo.Size(), wantIndexBytes)
+	}
 
 	last, err := r.Close()
 	if err != nil { t.Fatal(err) }

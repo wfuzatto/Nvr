@@ -25,7 +25,7 @@ O SHA-256 é calculado enquanto o segmento é escrito e armazenado no metadado f
 
 Um sidecar `.protected` impede remoção pela política de retenção.
 
-## Playback futuro
+## Playback derivado
 
 ```
 Annex-B original
@@ -36,3 +36,17 @@ Annex-B original
 ```
 
 A camada de playback será separada da ingestão para preservar o stream original.
+
+
+## Índice de frames para playback
+
+Novos segmentos possuem um sidecar:
+
+```
+arquivo.h264.frames.idx
+arquivo.h265.frames.idx
+```
+
+O arquivo começa com header `NVFI` versionado e usa registros binários fixos de 20 bytes com offset, comprimento, RTP timestamp e flag de keyframe. O payload de vídeo não é duplicado.
+
+A retenção remove esse sidecar junto com o segmento original. Gravações antigas sem sidecar continuam válidas como evidência, porém não entram automaticamente no playback HLS.

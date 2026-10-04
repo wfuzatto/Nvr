@@ -31,7 +31,7 @@
     <section class="panel">
       <div class="panel-head">
         <div><div class="eyebrow">INVENTÁRIO</div><h2>Câmeras</h2></div>
-        <button id="addBtn">+ Nova câmera</button>
+        <div class="toolbar"><button id="discoverBtn" class="secondary">Descobrir ONVIF</button><button id="addBtn">+ RTSP manual</button></div>
       </div>
       <div id="notice"></div>
       <div class="table-wrap">
@@ -56,6 +56,41 @@
     </form>
   </dialog>
 
+  <dialog id="onvifDialog" class="wide-dialog">
+    <form id="onvifForm">
+      <div class="dialog-head">
+        <div><div class="eyebrow">ONVIF</div><h2>Descobrir e adicionar câmera</h2></div>
+        <button type="button" class="icon" id="closeOnvif">×</button>
+      </div>
+      <div class="onvif-actions">
+        <button type="button" class="secondary" id="scanOnvif">Procurar na rede</button>
+        <span id="onvifScanStatus" class="muted"></span>
+      </div>
+      <div id="onvifDevices" class="device-list"></div>
+      <div class="grid2">
+        <label>Endpoint ONVIF<input id="onvifEndpoint" name="endpoint" placeholder="http://10.0.0.10/onvif/device_service" required></label>
+        <label>Usuário<input name="username" autocomplete="username"></label>
+      </div>
+      <div class="grid2">
+        <label>Senha<input name="password" type="password" autocomplete="current-password"></label>
+        <label>Perfil<select id="onvifProfile" name="profile_token" disabled><option>Leia os perfis primeiro</option></select></label>
+      </div>
+      <div class="actions left">
+        <button type="button" class="secondary" id="inspectOnvif">Ler dispositivo e perfis</button>
+        <span id="onvifDeviceInfo" class="muted"></span>
+      </div>
+      <hr>
+      <div class="grid2">
+        <label>Nome no NVR<input name="name" required></label>
+        <label>Cidade<input name="city"></label>
+      </div>
+      <label>Site / Região<input name="site"></label>
+      <label>Descrição<textarea name="description" rows="2"></textarea></label>
+      <label class="check"><input name="enabled" type="checkbox" checked> Adicionar habilitada e iniciar gravação</label>
+      <div class="actions"><button type="submit" id="addOnvifCamera" disabled>Adicionar câmera ONVIF</button></div>
+    </form>
+  </dialog>
+
   <dialog id="tokenDialog">
     <form id="tokenForm">
       <div class="dialog-head"><h2>Administrador</h2><button type="button" class="icon" id="closeToken">×</button></div>
@@ -71,6 +106,30 @@
     <img id="snapshotImage" alt="Snapshot da câmera" hidden>
   </dialog>
 
+  <dialog id="playerDialog" class="player-dialog">
+    <div class="dialog-head">
+      <div><div class="eyebrow">PLAYBACK</div><h2 id="playerTitle">Gravações</h2></div>
+      <button type="button" class="icon" id="closePlayer">×</button>
+    </div>
+    <div id="playerStatus" class="muted player-status">Preparando...</div>
+    <video id="playerVideo" controls playsinline preload="metadata"></video>
+    <section id="ptzPanel" class="ptz-panel" hidden>
+      <div class="eyebrow">PTZ ONVIF</div>
+      <div class="ptz-grid">
+        <button data-ptz="up" class="secondary">▲</button>
+        <button data-ptz="left" class="secondary">◀</button>
+        <button data-ptz="stop" class="danger">■</button>
+        <button data-ptz="right" class="secondary">▶</button>
+        <button data-ptz="down" class="secondary">▼</button>
+      </div>
+      <div class="ptz-zoom">
+        <button data-ptz="zoomout" class="secondary">− Zoom</button>
+        <button data-ptz="zoomin" class="secondary">+ Zoom</button>
+      </div>
+    </section>
+  </dialog>
+
+  <script src="/hls.min.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

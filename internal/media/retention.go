@@ -68,7 +68,7 @@ func RunRetention(root string, retentionDays int, maxBytes int64) (RetentionRepo
 	if !cutoff.IsZero() {
 		for _, file := range files {
 			if file.protected || !file.mod.Before(cutoff) { continue }
-			if err := os.Remove(file.path); err == nil {
+			if err := deleteRecordingFile(file.path); err == nil {
 				deleted[file.path] = true
 				report.DeletedFiles++
 				report.FreedBytes += file.size
@@ -81,7 +81,7 @@ func RunRetention(root string, retentionDays int, maxBytes int64) (RetentionRepo
 		for _, file := range files {
 			if remaining <= maxBytes { break }
 			if file.protected || deleted[file.path] { continue }
-			if err := os.Remove(file.path); err == nil {
+			if err := deleteRecordingFile(file.path); err == nil {
 				deleted[file.path] = true
 				report.DeletedFiles++
 				report.FreedBytes += file.size
@@ -103,4 +103,11 @@ func removeEmptyDirs(root string) {
 	})
 	sort.Slice(dirs, func(i, j int) bool { return len(dirs[i]) > len(dirs[j]) })
 	for _, dir := range dirs { _ = os.Remove(dir) }
+}
+
+func deleteRecordingFile(path string) error {
+	if err:=os.Remove(path); err!=nil { return err }
+	_ = os.Remove(path+".frames.idx")
+	_ = os.Remove(path+".protected")
+	return nil
 }

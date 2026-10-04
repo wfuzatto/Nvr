@@ -232,7 +232,7 @@ func (m *Manager) recordSession(ctx context.Context, cameraID, rawURL string) er
 
 	depacketizer, err := rtsp.NewDepacketizer(track.Codec, track.PayloadType)
 	if err != nil { _ = session.Close(); return err }
-	recorder, err := NewRecorder(m.cfg.StorageDir, cameraID, track.Codec, m.cfg.SegmentDuration, track.Bootstrap)
+	recorder, err := NewRecorder(m.cfg.StorageDir, cameraID, track.Codec, track.ClockRate, m.cfg.SegmentDuration, track.Bootstrap)
 	if err != nil { _ = session.Close(); return err }
 
 	sessionDone := make(chan struct{})
@@ -273,9 +273,17 @@ func (m *Manager) recordSession(ctx context.Context, cameraID, rawURL string) er
 		}
 		if au == nil { continue }
 
+		if discovered:=rtsp.ExtractParameterSets(track.Codec,au.Data); len(discovered)>0 {
+			track.Bootstrap=rtsp.MergeParameterSets(track.Codec,track.Bootstrap,discovered)
+			recorder.SetBootstrap(track.Bootstrap)
+		}
+
+		var bootstrap [][]byte
+		if au.Keyframe { bootstrap = track.Bootstrap }
 		m.broker.Publish(framebroker.EncodedFrame{
-			CameraID: cameraID, Codec: au.Codec, Timestamp: au.Timestamp,
-			Keyframe: au.Keyframe, Received: au.ReceivedAt, Data: au.Data,
+			CameraID: cameraID, Codec: au.Codec, ClockRate: track.ClockRate,
+			Timestamp: au.Timestamp, Keyframe: au.Keyframe,
+			Received: au.ReceivedAt, Bootstrap: bootstrap, Data: au.Data,
 		})
 		m.updateStatus(cameraID, func(s *CameraStatus) {
 			s.LastFrameAt = au.ReceivedAt

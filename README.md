@@ -84,6 +84,11 @@ Já disponível:
 - pre-buffer em disco;
 - snapshot HTTP Basic/Digest;
 - frame broker não bloqueante para plugins;
+- ONVIF WS-Discovery, Device/Media/Media2 e PTZ;
+- provisionamento automático por profile ONVIF;
+- playback HLS/MPEG-TS sem reencode;
+- live HLS sob demanda, compartilhado por câmera e sem segunda conexão RTSP;
+- HLS.js vendorizado e embutido para Chrome/Android;
 - health/readiness;
 - unit tests;
 - build Linux amd64/arm64;
@@ -115,3 +120,10 @@ Veja também `OFFLINE.md`.
 A implementação atual do gravador está documentada em `docs/MEDIA_ENGINE.md` e o formato de arquivos em `docs/STORAGE_FORMAT.md`.
 
 Os arquivos originais são gravados como elementary streams Annex-B. Playback web/remux será uma camada independente para não alterar a evidência original.
+
+
+### ONVIF e playback
+
+Consulte `docs/ONVIF.md` e `docs/PLAYBACK.md`.
+
+O navegador nunca precisa conhecer usuário/senha da câmera. ONVIF resolve as URIs no servidor, e playback usa tokens temporários vinculados à câmera.

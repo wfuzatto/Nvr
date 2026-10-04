@@ -9,9 +9,11 @@ import (
 type EncodedFrame struct {
 	CameraID  string    `json:"camera_id"`
 	Codec     string    `json:"codec"`
+	ClockRate int       `json:"clock_rate,omitempty"`
 	Timestamp uint32    `json:"timestamp"`
 	Keyframe  bool      `json:"keyframe"`
 	Received  time.Time `json:"received_at"`
+	Bootstrap [][]byte  `json:"-"`
 	Data      []byte    `json:"-"`
 }
 

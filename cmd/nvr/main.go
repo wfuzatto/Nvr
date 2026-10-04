@@ -13,12 +13,13 @@ import (
 	"github.com/wfuzatto/Nvr/internal/config"
 	"github.com/wfuzatto/Nvr/internal/framebroker"
 	"github.com/wfuzatto/Nvr/internal/httpapi"
+	"github.com/wfuzatto/Nvr/internal/live"
 	"github.com/wfuzatto/Nvr/internal/media"
 	"github.com/wfuzatto/Nvr/internal/security"
 	"github.com/wfuzatto/Nvr/internal/store"
 )
 
-const version = "0.2.0-dev"
+const version = "0.3.0-dev"
 
 func main() {
 	cfg, err := config.Load()
@@ -51,10 +52,11 @@ func main() {
 	broker := framebroker.New()
 	mediaManager := media.NewManager(cfg, cameraStore, box, broker)
 	mediaManager.Start(appCtx)
+	liveManager := live.NewManager(appCtx, broker)
 
 	api := httpapi.New(httpapi.Dependencies{
 		Config: cfg, Version: version, AdminToken: adminToken,
-		SecretBox: box, Cameras: cameraStore, Media: mediaManager,
+		SecretBox: box, Cameras: cameraStore, Media: mediaManager, Live: liveManager,
 	})
 
 	server := &http.Server{
