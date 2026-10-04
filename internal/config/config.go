@@ -16,6 +16,9 @@ type Config struct {
 	CameraDBFile       string
 	MasterKeyFile      string
 	AdminTokenFile     string
+	UsersFile          string
+	AuditFile          string
+	ExportsDir         string
 	SegmentDuration    time.Duration
 	RetentionDays      int
 	StorageMaxBytes    int64
@@ -79,6 +82,9 @@ func Load() (Config, error) {
 		CameraDBFile:       filepath.Join(dataDir, "cameras.json"),
 		MasterKeyFile:      filepath.Join(dataDir, "master.key"),
 		AdminTokenFile:     filepath.Join(dataDir, "admin.token"),
+		UsersFile:          filepath.Join(dataDir, "users.json"),
+		AuditFile:          filepath.Join(dataDir, "audit.jsonl"),
+		ExportsDir:         filepath.Join(dataDir, "exports"),
 		SegmentDuration:    segmentDuration,
 		RetentionDays:      retentionDays,
 		StorageMaxBytes:    storageMaxBytes,
@@ -91,7 +97,7 @@ func Load() (Config, error) {
 		WebRTCUDPPort:      webRTCUDPPort,
 		WebRTCPublicIP:     env("NVR_WEBRTC_PUBLIC_IP", ""),
 	}
-	for _, dir := range []string{cfg.DataDir, cfg.RuntimeDir, cfg.StorageDir} {
+	for _, dir := range []string{cfg.DataDir, cfg.RuntimeDir, cfg.StorageDir, cfg.ExportsDir} {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return Config{}, fmt.Errorf("create %s: %w", dir, err)
 		}
