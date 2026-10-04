@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nvr.local/schemas/plugin-manifest-v1.json",
+  "title": "NVR Plugin Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "const": "nvr.plugin/v1" },
+    "kind": { "const": "Plugin" },
+    "metadata": {
+      "type": "object",
+      "required": ["id", "name", "version"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "spec": {
+      "type": "object",
+      "required": ["capabilities", "events"],
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "frames:read",
+              "events:read",
+              "events:publish",
+              "snapshots:write",
+              "clips:request",
+              "config:read",
+              "network:egress",
+              "gpu:use",
+              "camera:ptz",
+              "action:execute"
+            ]
+          }
+        },
+        "frameProfile": {
+          "type": "object",
+          "properties": {
+            "maxFps": { "type": "number", "exclusiveMinimum": 0 },
+            "maxWidth": { "type": "integer", "minimum": 1 },
+            "maxHeight": { "type": "integer", "minimum": 1 },
+            "pixelFormat": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "cpu": { "type": "string" },
+            "memory": { "type": "string" },
+            "gpu": { "enum": ["none", "optional", "required"] }
+          },
+          "additionalProperties": false
+        },
+        "events": {
+          "type": "object",
+          "required": ["consumes", "publishes"],
+          "properties": {
+            "consumes": { "type": "array", "items": { "type": "string" } },
+            "publishes": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
