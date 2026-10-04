@@ -2,6 +2,7 @@ package webrtclive
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
