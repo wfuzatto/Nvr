@@ -2,11 +2,10 @@ package playback
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/wfuzatto/Nvr/internal/media"
 )
@@ -36,16 +35,27 @@ func TestMuxSegmentTS(t *testing.T) {
 	all:=append(append(append([]byte{},bootstrap...),frame1...),frame2...)
 	if err:=os.WriteFile(videoPath,all,0o640); err!=nil { t.Fatal(err) }
 
-	framesPath:=videoPath+".frames.jsonl"
+	framesPath:=videoPath+".frames.idx"
 	ff,err:=os.Create(framesPath)
 	if err!=nil { t.Fatal(err) }
-	enc:=json.NewEncoder(ff)
-	now:=time.Now().UTC()
-	_ = enc.Encode(media.FrameIndexEntry{Offset:int64(len(bootstrap)),Length:len(frame1),Timestamp:1000,Keyframe:true,Received:now})
-	_ = enc.Encode(media.FrameIndexEntry{Offset:int64(len(bootstrap)+len(frame1)),Length:len(frame2),Timestamp:4600,Received:now.Add(40*time.Millisecond)})
+	header:=make([]byte,media.FrameIndexHeaderSize)
+	copy(header[:4],[]byte("NVFI"))
+	header[4]=1
+	header[5]=media.FrameIndexRecordSize
+	if _,err:=ff.Write(header); err!=nil { t.Fatal(err) }
+	writeRecord:=func(offset int64,length int,timestamp uint32,keyframe bool) {
+		record:=make([]byte,media.FrameIndexRecordSize)
+		binary.BigEndian.PutUint64(record[0:8],uint64(offset))
+		binary.BigEndian.PutUint32(record[8:12],uint32(length))
+		binary.BigEndian.PutUint32(record[12:16],timestamp)
+		if keyframe { record[16]=1 }
+		if _,err:=ff.Write(record); err!=nil { t.Fatal(err) }
+	}
+	writeRecord(int64(len(bootstrap)),len(frame1),1000,true)
+	writeRecord(int64(len(bootstrap)+len(frame1)),len(frame2),4600,false)
 	_ = ff.Close()
 
-	segment:=media.Segment{CameraID:"cam-1",Codec:"H264",ClockRate:90000,Path:"cam-1/2026-10-04/test.h264",FramesPath:"cam-1/2026-10-04/test.h264.frames.jsonl"}
+	segment:=media.Segment{CameraID:"cam-1",Codec:"H264",ClockRate:90000,Path:"cam-1/2026-10-04/test.h264",FramesPath:"cam-1/2026-10-04/test.h264.frames.idx"}
 	var out bytes.Buffer
 	if err:=MuxSegmentTS(root,segment,&out); err!=nil { t.Fatal(err) }
 	if out.Len()==0 || out.Len()%188!=0 { t.Fatalf("invalid TS length %d",out.Len()) }
