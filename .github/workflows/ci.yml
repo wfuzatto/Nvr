@@ -3,11 +3,18 @@ name: nvr-ci
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "offline/bin/**"
+      - "offline/manifest.json"
   pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: nvr-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   offline-core:
@@ -21,27 +28,68 @@ jobs:
         with:
           go-version: "1.23.x"
           cache: false
+
       - name: Test with dependency resolution disabled
         run: go test ./...
-      - name: Build Linux AMD64
+
+      - name: Build offline Linux binaries
         env:
           CGO_ENABLED: "0"
-          GOOS: linux
-          GOARCH: amd64
         run: |
-          mkdir -p dist
-          go build -trimpath -ldflags="-s -w" -o dist/nvr-linux-amd64 ./cmd/nvr
-          sha256sum dist/nvr-linux-amd64 > dist/nvr-linux-amd64.sha256
-      - name: Build Linux ARM64
-        env:
-          CGO_ENABLED: "0"
-          GOOS: linux
-          GOARCH: arm64
+          mkdir -p offline/bin/linux-amd64 offline/bin/linux-arm64
+
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o offline/bin/linux-amd64/nvr ./cmd/nvr
+          (cd offline/bin/linux-amd64 && sha256sum nvr > nvr.sha256)
+
+          GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o offline/bin/linux-arm64/nvr ./cmd/nvr
+          (cd offline/bin/linux-arm64 && sha256sum nvr > nvr.sha256)
+
+      - name: Generate offline manifest
         run: |
-          go build -trimpath -ldflags="-s -w" -o dist/nvr-linux-arm64 ./cmd/nvr
-          sha256sum dist/nvr-linux-arm64 > dist/nvr-linux-arm64.sha256
+          AMD64_SHA="$(cut -d' ' -f1 offline/bin/linux-amd64/nvr.sha256)"
+          ARM64_SHA="$(cut -d' ' -f1 offline/bin/linux-arm64/nvr.sha256)"
+          cat > offline/manifest.json <<EOF
+          {
+            "schema_version": 1,
+            "source_commit": "$GITHUB_SHA",
+            "go_version": "$(go version | awk '{print $3}')",
+            "artifacts": [
+              {
+                "os": "linux",
+                "arch": "amd64",
+                "path": "offline/bin/linux-amd64/nvr",
+                "sha256": "$AMD64_SHA"
+              },
+              {
+                "os": "linux",
+                "arch": "arm64",
+                "path": "offline/bin/linux-arm64/nvr",
+                "sha256": "$ARM64_SHA"
+              }
+            ]
+          }
+          EOF
+
+      - name: Commit binaries into repository
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add offline/bin offline/manifest.json
+          if git diff --cached --quiet; then
+            echo "Offline binaries already match this source."
+            exit 0
+          fi
+          git commit -m "build: refresh offline binaries [skip ci]"
+          git push
+
       - uses: actions/upload-artifact@v4
         with:
           name: nvr-offline-core
-          path: dist/
+          path: |
+            offline/bin/
+            offline/manifest.json
+            offline/install.sh
+            offline/run-portable.sh
+            deploy/nvr.service
           if-no-files-found: error
