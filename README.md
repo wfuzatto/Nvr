@@ -69,11 +69,21 @@ Já disponível:
 - console web embutido no próprio binário;
 - autenticação administrativa por token local;
 - armazenamento atômico de câmeras em disco;
-- credenciais RTSP criptografadas com AES-GCM;
+- credenciais RTSP e snapshot criptografadas com AES-GCM;
 - CRUD de câmeras;
-- probe RTSP nativo com OPTIONS/DESCRIBE;
+- probe RTSP nativo;
+- sessão RTSP persistente DESCRIBE/SETUP/PLAY;
 - autenticação RTSP Basic e Digest/MD5;
-- leitura de SDP, tracks de vídeo/áudio e métodos suportados;
+- RTP interleaved sobre TCP;
+- H.264 e H.265/HEVC sem transcodificação;
+- watchdog e reconexão automática;
+- gravação segmentada com rename atômico;
+- timeline e SHA-256 por segmento;
+- retenção por dias e/ou bytes;
+- proteção de evidência;
+- pre-buffer em disco;
+- snapshot HTTP Basic/Digest;
+- frame broker não bloqueante para plugins;
 - health/readiness;
 - unit tests;
 - build Linux amd64/arm64;
@@ -98,3 +108,10 @@ make offline-check
 Veja também `OFFLINE.md`.
 
 > O media engine de gravação ainda não foi declarado como pronto. FFmpeg/GStreamer/PostgreSQL não serão exigidos até que seus artefatos offline façam parte do pacote da aplicação. Isso impede instalações parcialmente dependentes da Internet.
+
+
+### Media Engine
+
+A implementação atual do gravador está documentada em `docs/MEDIA_ENGINE.md` e o formato de arquivos em `docs/STORAGE_FORMAT.md`.
+
+Os arquivos originais são gravados como elementary streams Annex-B. Playback web/remux será uma camada independente para não alterar a evidência original.
