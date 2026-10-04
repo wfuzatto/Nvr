@@ -41,7 +41,7 @@ if ! id nvr >/dev/null 2>&1; then
   fi
 fi
 
-install -d -m 0755 "$INSTALL_DIR"
+install -d -m 0755 "$INSTALL_DIR" "$INSTALL_DIR/runtime"
 install -d -o nvr -g nvr -m 0750 "$DATA_DIR" "$DATA_DIR/recordings"
 install -m 0755 "$SOURCE" "$INSTALL_DIR/nvr"
 install -m 0644 "$REPO_ROOT/deploy/nvr.service" /etc/systemd/system/nvr.service
