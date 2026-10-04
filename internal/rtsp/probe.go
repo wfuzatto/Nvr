@@ -228,7 +228,7 @@ func parseAuthParams(raw string) map[string]string {
 	}
 	for _, r := range raw {
 		switch r {
-		case '\"':
+		case '"':
 			inQuote = !inQuote
 			token.WriteRune(r)
 		case ',':
