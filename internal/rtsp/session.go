@@ -226,11 +226,7 @@ func (s *Session) writeRequest(method, resource string, headers map[string]strin
 	if auth != "" { fmt.Fprintf(&b, "Authorization: %s\r\n", auth) }
 	b.WriteString("\r\n")
 
-	if deadline, ok := contextDeadline(headers); ok {
-		_ = s.conn.SetWriteDeadline(deadline)
-	} else {
-		_ = s.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-	}
+	_ = s.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	_, err := io.WriteString(s.conn, b.String())
 	if err != nil { return 0, "", fmt.Errorf("send RTSP %s: %w", method, err) }
 	return cseq, auth, nil
@@ -382,5 +378,3 @@ func cloneNALs(input [][]byte) [][]byte {
 	return out
 }
 
-// contextDeadline exists only to keep the write path free of global mutable deadlines.
-func contextDeadline(_ map[string]string) (time.Time, bool) { return time.Time{}, false }
