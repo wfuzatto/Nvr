@@ -79,7 +79,7 @@ func (s *Server) handlePlaybackPlaylist(w http.ResponseWriter, r *http.Request) 
 	maxDuration:=1.0
 	for _,segment:=range items {
 		if segment.Partial || segment.Path=="" { continue }
-		if segment.FramesPath=="" { segment.FramesPath=segment.Path+".frames.jsonl" }
+		if segment.FramesPath=="" { segment.FramesPath=segment.Path+".frames.idx" }
 		if !playback.CanMux(s.deps.Config.StorageDir,segment) { continue }
 		duration:=segment.End.Sub(segment.Start).Seconds()
 		if duration<=0 { continue }
@@ -135,7 +135,7 @@ func (s *Server) handlePlaybackSegment(w http.ResponseWriter, r *http.Request) {
 		clock=parsed
 	}
 	segment:=media.Segment{
-		CameraID:cameraID, Path:relative, FramesPath:relative+".frames.jsonl",
+		CameraID:cameraID, Path:relative, FramesPath:relative+".frames.idx",
 		Codec:codec, ClockRate:clock,
 	}
 	if !playback.CanMux(s.deps.Config.StorageDir,segment) {
