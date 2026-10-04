@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/pion/ice/v4"
 	"github.com/pion/webrtc/v4"
 	"github.com/pion/webrtc/v4/pkg/media"
 	"github.com/wfuzatto/Nvr/internal/framebroker"
@@ -23,8 +25,7 @@ var (
 
 type Config struct {
 	Enabled  bool
-	UDPMin   uint16
-	UDPMax   uint16
+	UDPPort  uint16
 	PublicIP string
 }
 
@@ -38,8 +39,7 @@ type Stats struct {
 	Enabled        bool `json:"enabled"`
 	ActiveHubs     int  `json:"active_hubs"`
 	ActiveSessions int  `json:"active_sessions"`
-	UDPMin         int  `json:"udp_min"`
-	UDPMax         int  `json:"udp_max"`
+	UDPPort        int  `json:"udp_port"`
 	PublicIPSet    bool `json:"public_ip_set"`
 }
 
@@ -48,6 +48,7 @@ type Manager struct {
 	broker *framebroker.Broker
 	cfg    Config
 	api    *webrtc.API
+	udpMux ice.UDPMux
 
 	mu       sync.Mutex
 	hubs     map[string]*cameraHub
@@ -78,21 +79,33 @@ func New(ctx context.Context, broker *framebroker.Broker, cfg Config) (*Manager,
 	if broker == nil { return nil, errors.New("frame broker is required") }
 
 	var setting webrtc.SettingEngine
+	var udpMux ice.UDPMux
 	if cfg.Enabled {
-		if cfg.UDPMin == 0 || cfg.UDPMax == 0 || cfg.UDPMax < cfg.UDPMin {
-			return nil, errors.New("invalid WebRTC UDP port range")
+		if cfg.UDPPort == 0 {
+			return nil, errors.New("invalid WebRTC UDP port")
 		}
-		if err := setting.SetEphemeralUDPPortRange(cfg.UDPMin, cfg.UDPMax); err != nil {
-			return nil, fmt.Errorf("configure WebRTC UDP range: %w", err)
+		mux, err := ice.NewMultiUDPMuxFromPort(
+			int(cfg.UDPPort),
+			ice.UDPMuxFromPortWithNetworks(ice.NetworkTypeUDP4),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("listen WebRTC UDP %d: %w", cfg.UDPPort, err)
 		}
-		if strings.TrimSpace(cfg.PublicIP) != "" {
-			setting.SetNAT1To1IPs([]string{strings.TrimSpace(cfg.PublicIP)}, webrtc.ICECandidateTypeHost)
+		udpMux = mux
+		setting.SetICEUDPMux(udpMux)
+		if publicIP:=strings.TrimSpace(cfg.PublicIP); publicIP!="" {
+			if net.ParseIP(publicIP)==nil {
+				_ = udpMux.Close()
+				return nil, fmt.Errorf("invalid WebRTC public IP %q", publicIP)
+			}
+			setting.SetNAT1To1IPs([]string{publicIP}, webrtc.ICECandidateTypeHost)
 		}
 	}
 
 	m := &Manager{
 		ctx:ctx, broker:broker, cfg:cfg,
 		api:webrtc.NewAPI(webrtc.WithSettingEngine(setting)),
+		udpMux:udpMux,
 		hubs:make(map[string]*cameraHub),
 		sessions:make(map[string]*session),
 	}
@@ -188,8 +201,7 @@ func (m *Manager) Stats() Stats {
 		Enabled:m.cfg.Enabled,
 		ActiveHubs:len(m.hubs),
 		ActiveSessions:len(m.sessions),
-		UDPMin:int(m.cfg.UDPMin),
-		UDPMax:int(m.cfg.UDPMax),
+		UDPPort:int(m.cfg.UDPPort),
 		PublicIPSet:strings.TrimSpace(m.cfg.PublicIP)!="",
 	}
 }
@@ -300,6 +312,7 @@ func (m *Manager) cleanupLoop() {
 			m.mu.Unlock()
 			for _,s:=range sessions { s.once.Do(func(){ _=s.pc.Close() }) }
 			for _,h:=range hubs { h.cancel() }
+			if m.udpMux!=nil { _=m.udpMux.Close() }
 			return
 		case now:=<-ticker.C:
 			m.mu.Lock()
