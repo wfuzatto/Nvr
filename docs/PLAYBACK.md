@@ -77,3 +77,38 @@ O muxer suporta H.264 e H.265 em MPEG-TS. A reprodução efetiva de H.265 depend
 ## Timestamp
 
 O mux usa o RTP clock registrado no segmento. Entre segmentos é emitido `#EXT-X-DISCONTINUITY`, permitindo reinício seguro da timeline após segmentação/reconexão.
+
+
+## Ao vivo HLS
+
+O live view HLS reutiliza o mesmo Frame Broker alimentado pela conexão RTSP de gravação.
+
+Fluxo:
+
+```
+RTSP único
+   |
+Media Engine
+   |
+Frame Broker
+   |
+Live HLS hub sob demanda
+   |
+MPEG-TS em memória
+   |
+HLS.js / HLS nativo
+```
+
+Características:
+
+- não abre uma segunda conexão RTSP;
+- não reencoda;
+- um hub é compartilhado entre vários visualizadores da mesma câmera;
+- segmentos são iniciados em keyframe;
+- alvo de aproximadamente 2 segundos, limitado pelo GOP real da câmera;
+- ring em memória de 8 segmentos;
+- limite de 32 MiB/15 segundos para impedir GOP defeituoso de consumir memória sem limite;
+- hub é encerrado após período sem visualizadores;
+- playlist e segmentos usam token HMAC temporário vinculado à câmera.
+
+WebRTC permanece planejado para a camada de baixa latência. HLS é o fallback universal e também atende playback gravado.
