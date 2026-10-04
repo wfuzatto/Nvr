@@ -25,8 +25,7 @@ type Config struct {
 	SnapshotTimeout    time.Duration
 	PreEventWindow     time.Duration
 	WebRTCEnabled      bool
-	WebRTCPortMin      int
-	WebRTCPortMax      int
+	WebRTCUDPPort      int
 	WebRTCPublicIP     string
 }
 
@@ -53,9 +52,7 @@ func Load() (Config, error) {
 	if err != nil { return Config{}, err }
 	webRTCEnabled, err := envBool("NVR_WEBRTC_ENABLED", true)
 	if err != nil { return Config{}, err }
-	webRTCPortMin, err := envInt("NVR_WEBRTC_UDP_MIN", 50000)
-	if err != nil { return Config{}, err }
-	webRTCPortMax, err := envInt("NVR_WEBRTC_UDP_MAX", 50100)
+	webRTCUDPPort, err := envInt("NVR_WEBRTC_UDP_PORT", 50000)
 	if err != nil { return Config{}, err }
 
 	if segmentDuration < 5*time.Second {
@@ -70,8 +67,8 @@ func Load() (Config, error) {
 	if storageMaxBytes < 0 {
 		return Config{}, fmt.Errorf("NVR_STORAGE_MAX_BYTES cannot be negative")
 	}
-	if webRTCPortMin < 1024 || webRTCPortMin > 65535 || webRTCPortMax < 1024 || webRTCPortMax > 65535 || webRTCPortMax < webRTCPortMin {
-		return Config{}, fmt.Errorf("NVR_WEBRTC_UDP_MIN/MAX must define a valid range between 1024 and 65535")
+	if webRTCUDPPort < 1024 || webRTCUDPPort > 65535 {
+		return Config{}, fmt.Errorf("NVR_WEBRTC_UDP_PORT must be between 1024 and 65535")
 	}
 
 	cfg := Config{
@@ -91,8 +88,7 @@ func Load() (Config, error) {
 		SnapshotTimeout:    snapshotTimeout,
 		PreEventWindow:     preEventWindow,
 		WebRTCEnabled:      webRTCEnabled,
-		WebRTCPortMin:      webRTCPortMin,
-		WebRTCPortMax:      webRTCPortMax,
+		WebRTCUDPPort:      webRTCUDPPort,
 		WebRTCPublicIP:     env("NVR_WEBRTC_PUBLIC_IP", ""),
 	}
 	for _, dir := range []string{cfg.DataDir, cfg.RuntimeDir, cfg.StorageDir} {
