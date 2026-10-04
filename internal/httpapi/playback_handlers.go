@@ -101,6 +101,9 @@ func (s *Server) handlePlaybackPlaylist(w http.ResponseWriter, r *http.Request) 
 		q:=url.Values{}
 		q.Set("token",r.URL.Query().Get("token"))
 		q.Set("path",segment.Path)
+		clock:=segment.ClockRate
+		if clock<=0 { clock=90000 }
+		q.Set("clock",strconv.Itoa(clock))
 		fmt.Fprintf(w,"/api/v1/playback/%s/segment.ts?%s\n",url.PathEscape(cameraID),q.Encode())
 	}
 	fmt.Fprintln(w,"#EXT-X-ENDLIST")
@@ -122,9 +125,18 @@ func (s *Server) handlePlaybackSegment(w http.ResponseWriter, r *http.Request) {
 	case ".h265": codec="H265"
 	default: http.Error(w,"unsupported segment",http.StatusBadRequest); return
 	}
+	clock:=90000
+	if rawClock:=r.URL.Query().Get("clock"); rawClock!="" {
+		parsed,err:=strconv.Atoi(rawClock)
+		if err!=nil || parsed<1000 || parsed>1000000 {
+			http.Error(w,"invalid RTP clock",http.StatusBadRequest)
+			return
+		}
+		clock=parsed
+	}
 	segment:=media.Segment{
 		CameraID:cameraID, Path:relative, FramesPath:relative+".frames.jsonl",
-		Codec:codec, ClockRate:90000,
+		Codec:codec, ClockRate:clock,
 	}
 	if !playback.CanMux(s.deps.Config.StorageDir,segment) {
 		http.Error(w,"segment is not playable",http.StatusNotFound)
