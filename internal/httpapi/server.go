@@ -44,6 +44,7 @@ type Dependencies struct {
 type Server struct {
 	deps Dependencies
 	mux *http.ServeMux
+	startedAt time.Time
 }
 
 type cameraInput struct {
@@ -59,7 +60,7 @@ type cameraInput struct {
 }
 
 func New(deps Dependencies) *Server {
-	s := &Server{deps: deps, mux: http.NewServeMux()}
+	s := &Server{deps: deps, mux: http.NewServeMux(), startedAt:time.Now().UTC()}
 	s.routes()
 	return s
 }
@@ -89,6 +90,8 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /api/v1/exports/{export}/download", s.require("evidence", http.HandlerFunc(s.handleDownloadExport)))
 
 	s.mux.Handle("GET /api/v1/system/readiness", s.auth(http.HandlerFunc(s.handleReadiness)))
+	s.mux.Handle("GET /api/v1/system/status", s.auth(http.HandlerFunc(s.handleSystemStatus)))
+	s.mux.Handle("GET /metrics", s.auth(http.HandlerFunc(s.handlePrometheus)))
 	s.mux.Handle("GET /api/v1/cameras", s.auth(http.HandlerFunc(s.handleListCameras)))
 	s.mux.Handle("POST /api/v1/cameras", s.require("admin", s.audited("camera.create","camera",http.HandlerFunc(s.handleCreateCamera))))
 	s.mux.Handle("GET /api/v1/cameras/{id}", s.auth(http.HandlerFunc(s.handleGetCamera)))
