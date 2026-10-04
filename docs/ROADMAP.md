@@ -17,7 +17,8 @@
 - [x] gravação H.264/H.265 segmentada;
 - [x] timeline;
 - [x] playback HLS/VOD sem reencode;
-- [ ] live WebRTC/HLS;
+- [x] live HLS sem reencode;
+- [ ] WebRTC de baixa latência;
 - [x] retenção;
 - [x] snapshot HTTP/Digest quando a câmera fornece endpoint;
 - [x] proteção de segmento/evidência;
