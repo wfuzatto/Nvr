@@ -84,6 +84,9 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /api/v1/cameras/{id}/ptz/status", s.auth(http.HandlerFunc(s.handlePTZStatus)))
 	s.mux.Handle("POST /api/v1/cameras/{id}/ptz/move", s.auth(http.HandlerFunc(s.handlePTZMove)))
 	s.mux.Handle("POST /api/v1/cameras/{id}/ptz/stop", s.auth(http.HandlerFunc(s.handlePTZStop)))
+	s.mux.Handle("POST /api/v1/cameras/{id}/playback/session", s.auth(http.HandlerFunc(s.handlePlaybackSession)))
+	s.mux.HandleFunc("GET /api/v1/playback/{id}/index.m3u8", s.handlePlaybackPlaylist)
+	s.mux.HandleFunc("GET /api/v1/playback/{id}/segment.ts", s.handlePlaybackSegment)
 	s.mux.Handle("/", webui.Handler())
 }
 
