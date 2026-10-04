@@ -17,7 +17,7 @@ import (
 
 type HotlistStore interface {
 	List() []model.HotlistEntry
-	Put(model.HotlistEntry) error
+	Put(model.HotlistEntry) (model.HotlistEntry,error)
 	Delete(string) error
 	Match(string) (model.HotlistEntry,bool)
 }
@@ -49,9 +49,9 @@ func (s *FileHotlistStore) List()[]model.HotlistEntry{
 	return out
 }
 
-func (s *FileHotlistStore) Put(e model.HotlistEntry)error{
+func (s *FileHotlistStore) Put(e model.HotlistEntry)(model.HotlistEntry,error){
 	e.Plate=normalizePlate(e.Plate)
-	if len(e.Plate)!=7{return errors.New("hotlist plate must contain exactly 7 alphanumeric characters")}
+	if len(e.Plate)!=7{return model.HotlistEntry{},errors.New("hotlist plate must contain exactly 7 alphanumeric characters")}
 	e.Label=strings.TrimSpace(e.Label)
 	now:=time.Now().UTC()
 	s.mu.Lock();defer s.mu.Unlock()
@@ -60,7 +60,8 @@ func (s *FileHotlistStore) Put(e model.HotlistEntry)error{
 	if e.CreatedAt.IsZero(){e.CreatedAt=now}
 	e.UpdatedAt=now
 	s.items[e.ID]=e
-	return s.persistLocked()
+	if err:=s.persistLocked();err!=nil{return model.HotlistEntry{},err}
+	return e,nil
 }
 
 func (s *FileHotlistStore) Delete(id string)error{
