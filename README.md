@@ -61,7 +61,7 @@ Fase 0 — arquitetura e contratos.
 
 ## Implementação atual
 
-O desenvolvimento começou pelo **core offline-first**, sem dependências de terceiros no código Go.
+O desenvolvimento começou pelo **core offline-first**. Dependências de terceiros aceitas, como Pion WebRTC, ficam versionadas e vendorizadas no próprio repositório para que build e runtime não dependam da Internet.
 
 Já disponível:
 
@@ -94,7 +94,7 @@ Já disponível:
 - health/readiness;
 - unit tests;
 - build Linux amd64/arm64;
-- validação de build com GOPROXY/GOSUMDB desligados.
+- validação de testes/build com GOPROXY/GOSUMDB desligados e módulos em vendor/.
 
 ### Executar
 
