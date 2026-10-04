@@ -80,6 +80,7 @@ func (s *Server) handlePlaybackPlaylist(w http.ResponseWriter, r *http.Request) 
 	for _,segment:=range items {
 		if segment.Partial || segment.Path=="" { continue }
 		if segment.FramesPath=="" { segment.FramesPath=segment.Path+".frames.jsonl" }
+		if !playback.CanMux(s.deps.Config.StorageDir,segment) { continue }
 		duration:=segment.End.Sub(segment.Start).Seconds()
 		if duration<=0 { continue }
 		if duration>maxDuration { maxDuration=duration }
@@ -124,6 +125,10 @@ func (s *Server) handlePlaybackSegment(w http.ResponseWriter, r *http.Request) {
 	segment:=media.Segment{
 		CameraID:cameraID, Path:relative, FramesPath:relative+".frames.jsonl",
 		Codec:codec, ClockRate:90000,
+	}
+	if !playback.CanMux(s.deps.Config.StorageDir,segment) {
+		http.Error(w,"segment is not playable",http.StatusNotFound)
+		return
 	}
 	w.Header().Set("Content-Type","video/mp2t")
 	w.Header().Set("Cache-Control","private, max-age=60")
