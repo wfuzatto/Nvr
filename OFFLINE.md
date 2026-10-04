@@ -59,3 +59,10 @@ O banco principal desta fase continua local/atômico. PostgreSQL só se tornará
 ## Release
 
 CI com Internet pode fabricar o pacote, mas o artefato final precisa passar por teste com resolução de dependências e saída para Internet desabilitadas.
+
+
+## Frontend HLS
+
+O player web usa HLS.js vendorizado. A versão é fixada no CI, o release é validado por SHA-256 e `hls.min.js` é gravado no repositório/embutido no binário.
+
+CDN não é utilizada em produção.
