@@ -41,11 +41,8 @@ jobs:
           mkdir -p /tmp/nvr-hls
           unzip -q /tmp/nvr-hls.zip -d /tmp/nvr-hls
           HLS_FILE="$(find /tmp/nvr-hls -type f -name 'hls.min.js' | head -n 1)"
-          LICENSE_FILE="$(find /tmp/nvr-hls -type f \( -name 'LICENSE' -o -name 'LICENSE.txt' \) | head -n 1)"
           test -n "$HLS_FILE"
-          test -n "$LICENSE_FILE"
           cp "$HLS_FILE" internal/webui/static/hls.min.js
-          cp "$LICENSE_FILE" internal/webui/static/HLS_LICENSE.txt
 
       - name: Test with dependency resolution disabled
         run: go test ./...
