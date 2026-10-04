@@ -43,6 +43,10 @@ func (s *SecretBox) Decrypt(encoded string) (string, error) {
 }
 
 func LoadOrCreateAdminToken(path string) (string, bool, error) {
+	return LoadOrCreateToken(path)
+}
+
+func LoadOrCreateToken(path string) (string, bool, error) {
 	raw, created, err := loadOrCreateRandom(path, 32)
 	if err != nil { return "", false, err }
 	return base64.RawURLEncoding.EncodeToString(raw), created, nil
