@@ -36,3 +36,17 @@ Annex-B original
 ```
 
 A camada de playback será separada da ingestão para preservar o stream original.
+
+
+## Índice de frames para playback
+
+Novos segmentos possuem um sidecar:
+
+```
+arquivo.h264.frames.jsonl
+arquivo.h265.frames.jsonl
+```
+
+Ele registra apenas offset, comprimento, RTP timestamp, keyframe e horário de cada Access Unit. O payload de vídeo não é duplicado.
+
+A retenção remove esse sidecar junto com o segmento original. Gravações antigas sem sidecar continuam válidas como evidência, porém não entram automaticamente no playback HLS.
