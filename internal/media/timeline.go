@@ -53,6 +53,10 @@ func ProtectSegment(root, relativePath string, protect bool) error {
 	if clean == "." || filepath.IsAbs(clean) || strings.HasPrefix(clean, "..") {
 		return os.ErrPermission
 	}
+	ext := strings.ToLower(filepath.Ext(clean))
+	if ext != ".h264" && ext != ".h265" {
+		return os.ErrPermission
+	}
 	absolute := filepath.Join(root, clean)
 	if _, err := os.Stat(absolute); err != nil { return err }
 	marker := absolute + ".protected"
