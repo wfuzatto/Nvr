@@ -36,6 +36,7 @@ type Session struct {
 	sessionID     string
 	track         VideoTrack
 	readTimeout   time.Duration
+	rtpChannel    byte
 	done          chan struct{}
 	closeOnce     sync.Once
 }
@@ -117,6 +118,10 @@ func OpenSession(ctx context.Context, rawURL string, readTimeout time.Duration) 
 	}
 	s.sessionID = strings.TrimSpace(strings.SplitN(setup.header.Get("Session"), ";", 2)[0])
 	if s.sessionID == "" { return fail(errors.New("RTSP SETUP returned no Session header")) }
+	transport := setup.header.Get("Transport")
+	channel, err := parseInterleavedRTPChannel(transport)
+	if err != nil { return fail(err) }
+	s.rtpChannel = channel
 
 	play, err := s.request("PLAY", s.baseURL, map[string]string{"Session":s.sessionID})
 	if err != nil { return fail(err) }
@@ -156,7 +161,7 @@ func (s *Session) ReadRTP() (RTPPacket, error) {
 			if length <= 0 || length > 4<<20 { return RTPPacket{}, errors.New("invalid RTSP interleaved frame length") }
 			payload := make([]byte, length)
 			if _, err := io.ReadFull(s.reader, payload); err != nil { return RTPPacket{}, err }
-			if channel != 0 { continue }
+			if channel != s.rtpChannel { continue }
 			packet, err := ParseRTP(payload)
 			if err != nil { continue }
 			return packet, nil
@@ -244,6 +249,23 @@ func (s *Session) keepaliveLoop() {
 			if err := s.writeOnly("OPTIONS", s.baseURL, headers); err != nil { return }
 		}
 	}
+}
+
+func parseInterleavedRTPChannel(transport string) (byte, error) {
+	lower := strings.ToLower(transport)
+	if !strings.Contains(lower, "rtp/avp/tcp") {
+		return 0, fmt.Errorf("camera did not accept RTP over TCP: %q", transport)
+	}
+	index := strings.Index(lower, "interleaved=")
+	if index < 0 { return 0, nil }
+	value := transport[index+len("interleaved="):]
+	if semi := strings.Index(value, ";"); semi >= 0 { value = value[:semi] }
+	if dash := strings.Index(value, "-"); dash >= 0 { value = value[:dash] }
+	channel, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || channel < 0 || channel > 255 {
+		return 0, fmt.Errorf("invalid RTSP interleaved transport %q", transport)
+	}
+	return byte(channel), nil
 }
 
 func parseVideoTrack(sdp, base string) (VideoTrack, error) {
