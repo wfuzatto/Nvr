@@ -33,15 +33,20 @@ Critério: operar 24/7 sem vazamento de recursos e recuperar automaticamente str
 
 ## Fase 2 — plugin runtime + Plate OCR
 - [x] frame broker codificado não bloqueante;
-- [ ] decoder/frame broker em pixel format;
-- [ ] instalação/enable/disable de plugins.
-- resource limits.
-- plate_ocr end-to-end.
-- busca por placa.
-- snapshot/clip do evento.
-- deduplicação multi-frame.
-- hotlist com alerta.
-- métricas de precisão/latência.
+- [x] transporte JPEG normalizado e autenticado para plugins;
+- [x] token exclusivo de plugin sem exposição de credenciais RTSP;
+- [x] ingestão idempotente de eventos;
+- [x] armazenamento de evidência JPEG com SHA-256;
+- [x] pesquisa exata/parcial de placas por API e RBAC;
+- [x] plate_ocr end-to-end com provider clássico offline;
+- [x] ROI/faixa/direção por câmera;
+- [x] deduplicação e votação multi-frame;
+- [x] spool/replay quando o NVR está indisponível;
+- [x] healthcheck e métricas do Plate OCR;
+- [ ] decoder contínuo/frame broker NV12 para analytics de FPS alto;
+- [ ] provider neural validado para cenários difíceis;
+- [ ] hotlist com alerta;
+- [ ] clip exato associado ao evento.
 
 ## Fase 3 — multi-node
 - node enrollment.

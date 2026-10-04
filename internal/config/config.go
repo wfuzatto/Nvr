@@ -14,8 +14,11 @@ type Config struct {
 	RuntimeDir         string
 	StorageDir         string
 	CameraDBFile       string
+	EventDBFile        string
+	EvidenceDir        string
 	MasterKeyFile      string
 	AdminTokenFile     string
+	PluginTokenFile    string
 	UsersFile          string
 	AuditFile          string
 	ExportsDir         string
@@ -58,21 +61,11 @@ func Load() (Config, error) {
 	webRTCUDPPort, err := envInt("NVR_WEBRTC_UDP_PORT", 50000)
 	if err != nil { return Config{}, err }
 
-	if segmentDuration < 5*time.Second {
-		return Config{}, fmt.Errorf("NVR_SEGMENT_SECONDS must be at least 5")
-	}
-	if supervisorInterval < time.Second {
-		return Config{}, fmt.Errorf("NVR_SUPERVISOR_SECONDS must be at least 1")
-	}
-	if retentionDays < 0 {
-		return Config{}, fmt.Errorf("NVR_RETENTION_DAYS cannot be negative")
-	}
-	if storageMaxBytes < 0 {
-		return Config{}, fmt.Errorf("NVR_STORAGE_MAX_BYTES cannot be negative")
-	}
-	if webRTCUDPPort < 1024 || webRTCUDPPort > 65535 {
-		return Config{}, fmt.Errorf("NVR_WEBRTC_UDP_PORT must be between 1024 and 65535")
-	}
+	if segmentDuration < 5*time.Second { return Config{}, fmt.Errorf("NVR_SEGMENT_SECONDS must be at least 5") }
+	if supervisorInterval < time.Second { return Config{}, fmt.Errorf("NVR_SUPERVISOR_SECONDS must be at least 1") }
+	if retentionDays < 0 { return Config{}, fmt.Errorf("NVR_RETENTION_DAYS cannot be negative") }
+	if storageMaxBytes < 0 { return Config{}, fmt.Errorf("NVR_STORAGE_MAX_BYTES cannot be negative") }
+	if webRTCUDPPort < 1024 || webRTCUDPPort > 65535 { return Config{}, fmt.Errorf("NVR_WEBRTC_UDP_PORT must be between 1024 and 65535") }
 
 	cfg := Config{
 		ListenAddress:      env("NVR_LISTEN", "0.0.0.0:8080"),
@@ -80,8 +73,11 @@ func Load() (Config, error) {
 		RuntimeDir:         runtimeDir,
 		StorageDir:         storageDir,
 		CameraDBFile:       filepath.Join(dataDir, "cameras.json"),
+		EventDBFile:        filepath.Join(dataDir, "events", "events.jsonl"),
+		EvidenceDir:        filepath.Join(storageDir, "analytics", "plate"),
 		MasterKeyFile:      filepath.Join(dataDir, "master.key"),
 		AdminTokenFile:     filepath.Join(dataDir, "admin.token"),
+		PluginTokenFile:    filepath.Join(dataDir, "plugin.token"),
 		UsersFile:          filepath.Join(dataDir, "users.json"),
 		AuditFile:          filepath.Join(dataDir, "audit.jsonl"),
 		ExportsDir:         filepath.Join(dataDir, "exports"),
@@ -97,10 +93,8 @@ func Load() (Config, error) {
 		WebRTCUDPPort:      webRTCUDPPort,
 		WebRTCPublicIP:     env("NVR_WEBRTC_PUBLIC_IP", ""),
 	}
-	for _, dir := range []string{cfg.DataDir, cfg.RuntimeDir, cfg.StorageDir, cfg.ExportsDir} {
-		if err := os.MkdirAll(dir, 0o750); err != nil {
-			return Config{}, fmt.Errorf("create %s: %w", dir, err)
-		}
+	for _, dir := range []string{cfg.DataDir, cfg.RuntimeDir, cfg.StorageDir, cfg.ExportsDir, filepath.Dir(cfg.EventDBFile), cfg.EvidenceDir} {
+		if err := os.MkdirAll(dir, 0o750); err != nil { return Config{}, fmt.Errorf("create %s: %w", dir, err) }
 	}
 	return cfg, nil
 }
