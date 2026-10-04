@@ -16,6 +16,7 @@ import (
 
 	"github.com/wfuzatto/Nvr/internal/audit"
 	"github.com/wfuzatto/Nvr/internal/config"
+	"github.com/wfuzatto/Nvr/internal/evidence"
 	"github.com/wfuzatto/Nvr/internal/live"
 	"github.com/wfuzatto/Nvr/internal/media"
 	"github.com/wfuzatto/Nvr/internal/model"
@@ -33,6 +34,7 @@ type Dependencies struct {
 	SecretBox *security.SecretBox
 	Auth *security.AuthManager
 	Audit *audit.Log
+	Evidence *evidence.Manager
 	Cameras store.CameraStore
 	Media *media.Manager
 	Live *live.Manager
@@ -80,6 +82,11 @@ func (s *Server) routes() {
 
 	s.mux.Handle("GET /api/v1/audit", s.require("evidence", http.HandlerFunc(s.handleAuditList)))
 	s.mux.Handle("GET /api/v1/audit/verify", s.require("evidence", http.HandlerFunc(s.handleAuditVerify)))
+
+	s.mux.Handle("POST /api/v1/cameras/{id}/exports", s.require("evidence", s.audited("evidence.export.create","camera",http.HandlerFunc(s.handleCreateExport))))
+	s.mux.Handle("GET /api/v1/exports", s.require("evidence", http.HandlerFunc(s.handleListExports)))
+	s.mux.Handle("GET /api/v1/exports/{export}", s.require("evidence", http.HandlerFunc(s.handleGetExport)))
+	s.mux.Handle("GET /api/v1/exports/{export}/download", s.require("evidence", http.HandlerFunc(s.handleDownloadExport)))
 
 	s.mux.Handle("GET /api/v1/system/readiness", s.auth(http.HandlerFunc(s.handleReadiness)))
 	s.mux.Handle("GET /api/v1/cameras", s.auth(http.HandlerFunc(s.handleListCameras)))
