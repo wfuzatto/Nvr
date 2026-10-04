@@ -273,6 +273,11 @@ func (m *Manager) recordSession(ctx context.Context, cameraID, rawURL string) er
 		}
 		if au == nil { continue }
 
+		if discovered:=rtsp.ExtractParameterSets(track.Codec,au.Data); len(discovered)>0 {
+			track.Bootstrap=rtsp.MergeParameterSets(track.Codec,track.Bootstrap,discovered)
+			recorder.SetBootstrap(track.Bootstrap)
+		}
+
 		var bootstrap [][]byte
 		if au.Keyframe { bootstrap = track.Bootstrap }
 		m.broker.Publish(framebroker.EncodedFrame{
