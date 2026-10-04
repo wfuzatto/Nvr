@@ -87,6 +87,7 @@ Já disponível:
 - ONVIF WS-Discovery, Device/Media/Media2 e PTZ;
 - provisionamento automático por profile ONVIF;
 - playback HLS/MPEG-TS sem reencode;
+- live HLS sob demanda, compartilhado por câmera e sem segunda conexão RTSP;
 - HLS.js vendorizado e embutido para Chrome/Android;
 - health/readiness;
 - unit tests;
