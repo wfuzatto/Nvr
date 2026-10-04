@@ -118,6 +118,8 @@ sudo ufw allow 50000/udp
 
 A porta pode ser alterada.
 
+Se a porta UDP estiver ocupada ou a inicialização WebRTC falhar, o NVR não encerra: WebRTC fica indisponível e live HLS continua funcionando.
+
 ## Acesso por NAT / Internet
 
 Se o servidor possuir um endereço público encaminhado para ele, configure:
