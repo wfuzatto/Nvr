@@ -13,6 +13,7 @@ import (
 
 	"github.com/wfuzatto/Nvr/internal/config"
 	"github.com/wfuzatto/Nvr/internal/model"
+	"github.com/wfuzatto/Nvr/internal/security"
 	"github.com/wfuzatto/Nvr/internal/store"
 )
 
@@ -21,7 +22,8 @@ func TestPluginEventEvidenceAndSearch(t *testing.T){
 	cams,err:=store.OpenFileCameraStore(dir+"/cameras.json");if err!=nil{t.Fatal(err)}
 	if err:=cams.Put(model.Camera{ID:"cam1",Name:"Camera 1",City:"Cidade",Site:"Centro",Enabled:true});err!=nil{t.Fatal(err)}
 	events,err:=store.OpenFileEventStore(dir+"/events.jsonl");if err!=nil{t.Fatal(err)}
-	api:=New(Dependencies{Config:config.Config{SnapshotTimeout:time.Second},AdminToken:"admin",Cameras:cams})
+	auth,err:=security.OpenAuthManager(dir+"/users.json","admin");if err!=nil{t.Fatal(err)}
+	api:=New(Dependencies{Config:config.Config{SnapshotTimeout:time.Second},AdminToken:"admin",Auth:auth,Cameras:cams})
 	AttachPluginRoutes(api,PluginDependencies{Token:"plugin",Events:events,EvidenceDir:dir+"/evidence"})
 	srv:=httptest.NewServer(api.Handler());defer srv.Close()
 
