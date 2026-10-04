@@ -23,6 +23,7 @@ import (
 	"github.com/wfuzatto/Nvr/internal/security"
 	"github.com/wfuzatto/Nvr/internal/store"
 	"github.com/wfuzatto/Nvr/internal/webui"
+	"github.com/wfuzatto/Nvr/internal/webrtclive"
 )
 
 type Dependencies struct {
@@ -33,6 +34,7 @@ type Dependencies struct {
 	Cameras store.CameraStore
 	Media *media.Manager
 	Live *live.Manager
+	WebRTC *webrtclive.Manager
 }
 
 type Server struct {
@@ -86,6 +88,9 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /api/v1/cameras/{id}/ptz/status", s.auth(http.HandlerFunc(s.handlePTZStatus)))
 	s.mux.Handle("POST /api/v1/cameras/{id}/ptz/move", s.auth(http.HandlerFunc(s.handlePTZMove)))
 	s.mux.Handle("POST /api/v1/cameras/{id}/ptz/stop", s.auth(http.HandlerFunc(s.handlePTZStop)))
+	s.mux.Handle("POST /api/v1/cameras/{id}/webrtc/session", s.auth(http.HandlerFunc(s.handleWebRTCSession)))
+	s.mux.Handle("DELETE /api/v1/webrtc/sessions/{session}", s.auth(http.HandlerFunc(s.handleWebRTCClose)))
+	s.mux.Handle("GET /api/v1/webrtc/status", s.auth(http.HandlerFunc(s.handleWebRTCStatus)))
 	s.mux.Handle("POST /api/v1/cameras/{id}/live/session", s.auth(http.HandlerFunc(s.handleLiveSession)))
 	s.mux.HandleFunc("GET /api/v1/live/{id}/index.m3u8", s.handleLivePlaylist)
 	s.mux.HandleFunc("GET /api/v1/live/{id}/segment.ts", s.handleLiveSegment)
@@ -116,6 +121,11 @@ func (s *Server) handleReadiness(w http.ResponseWriter, _ *http.Request) {
 		ok = false
 	} else { checks["storage_dir"] = "ok" }
 	checks["runtime_dir"] = s.deps.Config.RuntimeDir
+	if s.deps.WebRTC != nil {
+		checks["webrtc"] = s.deps.WebRTC.Stats()
+	} else {
+		checks["webrtc"] = "optional_unavailable"
+	}
 	checks["network_download_required"] = false
 	status := http.StatusOK
 	if !ok { status = http.StatusServiceUnavailable }

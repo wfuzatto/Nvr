@@ -2,6 +2,8 @@ const state = {
   token: sessionStorage.getItem("nvr_admin_token") || "",
   cameras: {},
   hls: null,
+  webrtc: null,
+  webrtcSession: "",
   playerCamera: null,
   onvifProfiles: []
 };
@@ -27,7 +29,12 @@ async function api(path, options) {
   const response = await fetch(path, Object.assign({}, options, {headers: headers}));
   if (response.status === 204) return null;
   const data = await response.json().catch(function () { return {}; });
-  if (!response.ok) throw new Error(data.error || ("HTTP " + response.status));
+  if (!response.ok) {
+    const err = new Error(data.error || ("HTTP " + response.status));
+    err.status = response.status;
+    err.data = data;
+    throw err;
+  }
   return data;
 }
 
@@ -123,7 +130,26 @@ async function showSnapshot(id) {
   }
 }
 
+function releaseWebRTC() {
+  const session = state.webrtcSession;
+  state.webrtcSession = "";
+  if (session && state.token) {
+    fetch("/api/v1/webrtc/sessions/" + encodeURIComponent(session), {
+      method: "DELETE",
+      headers: {Authorization: "Bearer " + state.token},
+      keepalive: true
+    }).catch(function () {});
+  }
+  if (state.webrtc) {
+    try { state.webrtc.close(); } catch (_) {}
+    state.webrtc = null;
+  }
+  const video = byId("playerVideo");
+  video.srcObject = null;
+}
+
 function destroyPlayback() {
+  releaseWebRTC();
   if (state.hls) {
     state.hls.destroy();
     state.hls = null;
@@ -131,6 +157,7 @@ function destroyPlayback() {
   const video = byId("playerVideo");
   video.pause();
   video.removeAttribute("src");
+  video.srcObject = null;
   video.load();
 }
 
@@ -169,24 +196,106 @@ function attachHLS(playlist, label, isLive) {
   return false;
 }
 
+function waitForICEGatheringComplete(pc, timeoutMs) {
+  if (pc.iceGatheringState === "complete") return Promise.resolve();
+  return new Promise(function (resolve) {
+    let finished = false;
+    const finish = function () {
+      if (finished) return;
+      finished = true;
+      pc.removeEventListener("icegatheringstatechange", onChange);
+      resolve();
+    };
+    const onChange = function () {
+      if (pc.iceGatheringState === "complete") finish();
+    };
+    pc.addEventListener("icegatheringstatechange", onChange);
+    setTimeout(finish, timeoutMs || 5000);
+  });
+}
+
+async function startHLSLive(id, reason) {
+  if (reason) byId("playerStatus").textContent = reason + " Usando HLS...";
+  const session = await api("/api/v1/cameras/" + id + "/live/session", {
+    method:"POST",
+    body:JSON.stringify({ttl_seconds:28800})
+  });
+  attachHLS(session.playlist_url, "Ao vivo HLS local", true);
+}
+
+async function startWebRTC(id) {
+  if (!window.RTCPeerConnection) throw new Error("WebRTC indisponível neste navegador.");
+
+  const pc = new RTCPeerConnection({iceServers: []});
+  state.webrtc = pc;
+  let fallbackStarted = false;
+
+  pc.addTransceiver("video", {direction:"recvonly"});
+  pc.ontrack = function (event) {
+    const video = byId("playerVideo");
+    video.srcObject = event.streams && event.streams[0]
+      ? event.streams[0]
+      : new MediaStream([event.track]);
+    video.play().catch(function () {});
+  };
+  pc.onconnectionstatechange = function () {
+    if (state.webrtc !== pc) return;
+    if (pc.connectionState === "connected") {
+      byId("playerStatus").textContent = "Ao vivo WebRTC · baixa latência";
+      return;
+    }
+    if (pc.connectionState === "failed" && !fallbackStarted) {
+      fallbackStarted = true;
+      releaseWebRTC();
+      startHLSLive(id, "WebRTC perdeu a conexão.").catch(function (err) {
+        byId("playerStatus").textContent = err.message;
+      });
+    }
+  };
+
+  try {
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await waitForICEGatheringComplete(pc, 5000);
+    if (!pc.localDescription) throw new Error("Oferta WebRTC indisponível.");
+
+    const answer = await api("/api/v1/cameras/" + id + "/webrtc/session", {
+      method:"POST",
+      body:JSON.stringify({
+        type:"offer",
+        sdp:pc.localDescription.sdp
+      })
+    });
+    state.webrtcSession = answer.session_id || "";
+    await pc.setRemoteDescription({type:"answer", sdp:answer.sdp});
+    byId("playerStatus").textContent = "Negociando ICE/DTLS...";
+  } catch (err) {
+    releaseWebRTC();
+    throw err;
+  }
+}
+
 async function showLive(id) {
   const camera = state.cameras[id];
   if (!camera) return;
   state.playerCamera = id;
   byId("playerTitle").textContent = camera.name + " — Ao vivo";
-  byId("playerStatus").textContent = "Conectando ao fluxo gravado...";
+  byId("playerStatus").textContent = "Tentando WebRTC de baixa latência...";
   byId("ptzPanel").hidden = !camera.onvif_ptz;
   byId("playerDialog").showModal();
   destroyPlayback();
 
   try {
-    const session = await api("/api/v1/cameras/" + id + "/live/session", {
-      method:"POST",
-      body:JSON.stringify({ttl_seconds:28800})
-    });
-    attachHLS(session.playlist_url, "Ao vivo HLS local", true);
+    await startWebRTC(id);
   } catch (err) {
-    byId("playerStatus").textContent = err.message;
+    try {
+      const reason = err && err.data && err.data.codec
+        ? ("WebRTC sem transcodificação não suporta " + err.data.codec + ".")
+        : ("WebRTC indisponível: " + err.message + ".");
+      await startHLSLive(id, reason);
+    } catch (fallbackErr) {
+      byId("playerStatus").textContent = fallbackErr.message;
+    }
   }
 }
 

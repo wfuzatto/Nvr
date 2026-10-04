@@ -18,7 +18,7 @@
 - [x] timeline;
 - [x] playback HLS/VOD sem reencode;
 - [x] live HLS sem reencode;
-- [ ] WebRTC de baixa latência;
+- [x] WebRTC H.264 de baixa latência com fallback HLS;
 - [x] retenção;
 - [x] snapshot HTTP/Digest quando a câmera fornece endpoint;
 - [x] proteção de segmento/evidência;

@@ -17,9 +17,10 @@ import (
 	"github.com/wfuzatto/Nvr/internal/media"
 	"github.com/wfuzatto/Nvr/internal/security"
 	"github.com/wfuzatto/Nvr/internal/store"
+	"github.com/wfuzatto/Nvr/internal/webrtclive"
 )
 
-const version = "0.3.0-dev"
+const version = "0.4.0-dev"
 
 func main() {
 	cfg, err := config.Load()
@@ -53,10 +54,22 @@ func main() {
 	mediaManager := media.NewManager(cfg, cameraStore, box, broker)
 	mediaManager.Start(appCtx)
 	liveManager := live.NewManager(appCtx, broker)
+	var webRTCManager *webrtclive.Manager
+	if cfg.WebRTCEnabled {
+		webRTCManager, err = webrtclive.New(appCtx, broker, webrtclive.Config{
+			Enabled: true,
+			UDPPort: uint16(cfg.WebRTCUDPPort),
+			PublicIP: cfg.WebRTCPublicIP,
+		})
+		if err != nil {
+			log.Printf("WebRTC unavailable: %v; live HLS fallback remains enabled", err)
+			webRTCManager = nil
+		}
+	}
 
 	api := httpapi.New(httpapi.Dependencies{
 		Config: cfg, Version: version, AdminToken: adminToken,
-		SecretBox: box, Cameras: cameraStore, Media: mediaManager, Live: liveManager,
+		SecretBox: box, Cameras: cameraStore, Media: mediaManager, Live: liveManager, WebRTC: webRTCManager,
 	})
 
 	server := &http.Server{
@@ -71,6 +84,11 @@ func main() {
 	go func() {
 		log.Printf("NVR %s listening on http://%s", version, cfg.ListenAddress)
 		log.Printf("media engine enabled: segment=%s retention=%dd max_bytes=%d", cfg.SegmentDuration, cfg.RetentionDays, cfg.StorageMaxBytes)
+		if webRTCManager != nil {
+			log.Printf("WebRTC enabled: UDP %d (ICE mux) public_ip_configured=%t", cfg.WebRTCUDPPort, cfg.WebRTCPublicIP != "")
+		} else {
+			log.Printf("WebRTC disabled/unavailable; live HLS remains available")
+		}
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}

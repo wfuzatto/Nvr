@@ -61,7 +61,7 @@ Fase 0 — arquitetura e contratos.
 
 ## Implementação atual
 
-O desenvolvimento começou pelo **core offline-first**, sem dependências de terceiros no código Go.
+O desenvolvimento começou pelo **core offline-first**. Dependências de terceiros aceitas, como Pion WebRTC, ficam versionadas e vendorizadas no próprio repositório para que build e runtime não dependam da Internet.
 
 Já disponível:
 
@@ -88,11 +88,13 @@ Já disponível:
 - provisionamento automático por profile ONVIF;
 - playback HLS/MPEG-TS sem reencode;
 - live HLS sob demanda, compartilhado por câmera e sem segunda conexão RTSP;
+- WebRTC H.264 de baixa latência via Pion, compartilhado por câmera e sem transcodificação;
+- fallback automático WebRTC → HLS;
 - HLS.js vendorizado e embutido para Chrome/Android;
 - health/readiness;
 - unit tests;
 - build Linux amd64/arm64;
-- validação de build com GOPROXY/GOSUMDB desligados.
+- validação de testes/build com GOPROXY/GOSUMDB desligados e módulos em vendor/.
 
 ### Executar
 
@@ -124,6 +126,6 @@ Os arquivos originais são gravados como elementary streams Annex-B. Playback we
 
 ### ONVIF e playback
 
-Consulte `docs/ONVIF.md` e `docs/PLAYBACK.md`.
+Consulte `docs/ONVIF.md`, `docs/PLAYBACK.md` e `docs/WEBRTC.md`.
 
 O navegador nunca precisa conhecer usuário/senha da câmera. ONVIF resolve as URIs no servidor, e playback usa tokens temporários vinculados à câmera.

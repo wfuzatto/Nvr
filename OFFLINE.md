@@ -6,10 +6,10 @@ O NVR não pode precisar da Internet para instalar, iniciar, gravar, visualizar 
 
 ## Core atual
 
-O primeiro core foi deliberadamente implementado apenas com a biblioteca padrão do Go:
+O primeiro core foi inicialmente implementado apenas com a biblioteca padrão do Go. A camada WebRTC adicionou uma exceção deliberada: Pion WebRTC e suas dependências ficam totalmente vendorizadas no repositório.
 
-- nenhum `go get`;
-- nenhum módulo Go de terceiro;
+- nenhum `go get` em produção;
+- módulos Go de terceiros somente em `vendor/` e versões fixadas;
 - nenhum npm ou Node.js;
 - nenhum CDN;
 - frontend HTML/CSS/JS embutido no binário;
@@ -66,3 +66,20 @@ CI com Internet pode fabricar o pacote, mas o artefato final precisa passar por 
 O player web usa HLS.js vendorizado. A versão é fixada no CI, o release é validado por SHA-256 e `hls.min.js` é gravado no repositório/embutido no binário.
 
 CDN não é utilizada em produção.
+
+
+## WebRTC vendorizado
+
+A camada de baixa latência usa Pion WebRTC v4.2.22.
+
+O CI pode acessar a Internet durante a fabricação para executar `go mod tidy` e `go mod vendor`. Em seguida, testes e builds executam com:
+
+```bash
+GOPROXY=off
+GOSUMDB=off
+GOFLAGS=-mod=vendor
+```
+
+O `vendor/`, `go.mod` e `go.sum` são gravados no próprio repositório pelo pipeline de `main`.
+
+O runtime não usa STUN/TURN público por padrão. Em LAN o WebRTC usa ICE local; fora da LAN pode ser configurado `NVR_WEBRTC_PUBLIC_IP` e encaminhamento da porta UDP configurada.
