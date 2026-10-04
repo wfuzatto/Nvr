@@ -30,3 +30,13 @@ func TestParseH265VideoTrack(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	if track.Codec != "H265" { t.Fatalf("codec=%q", track.Codec) }
 }
+
+func TestParseInterleavedRTPChannel(t *testing.T) {
+	channel, err := parseInterleavedRTPChannel("RTP/AVP/TCP;unicast;interleaved=2-3;ssrc=1234")
+	if err != nil { t.Fatal(err) }
+	if channel != 2 { t.Fatalf("channel=%d", channel) }
+
+	if _, err := parseInterleavedRTPChannel("RTP/AVP;unicast;client_port=10000-10001"); err == nil {
+		t.Fatal("expected UDP transport rejection")
+	}
+}
