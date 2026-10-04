@@ -25,6 +25,7 @@ type Segment struct {
 	Keyframes  int       `json:"keyframes"`
 	SHA256     string    `json:"sha256"`
 	Protected  bool      `json:"protected,omitempty"`
+	Partial    bool      `json:"partial,omitempty"`
 }
 
 type Recorder struct {
@@ -79,6 +80,17 @@ func (r *Recorder) Write(au rtsp.AccessUnit) (*Segment, error) {
 	r.current.Bytes += int64(n)
 	r.current.End = when
 	return completed, nil
+}
+
+
+func (r *Recorder) Current() *Segment {
+	if r.file == nil { return nil }
+	current := r.current
+	relative, err := filepath.Rel(r.root, r.tmpPath)
+	if err == nil { current.Path = filepath.ToSlash(relative) }
+	current.Partial = true
+	current.SHA256 = ""
+	return &current
 }
 
 func (r *Recorder) Close() (*Segment, error) {
