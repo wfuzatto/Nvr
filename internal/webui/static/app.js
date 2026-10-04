@@ -1,4 +1,10 @@
-const state = { token: sessionStorage.getItem("nvr_admin_token") || "" };
+const state = {
+  token: sessionStorage.getItem("nvr_admin_token") || "",
+  cameras: {},
+  hls: null,
+  playerCamera: null,
+  onvifProfiles: []
+};
 const byId = function (id) { return document.getElementById(id); };
 
 function escapeHTML(value) {
@@ -54,6 +60,8 @@ async function loadCameras() {
     const statuses = {};
     (media.items || []).forEach(function (s) { statuses[s.camera_id] = s; });
 
+    state.cameras = {};
+    data.items.forEach(function (camera) { state.cameras[camera.id] = camera; });
     byId("cameraCount").textContent = data.count;
     byId("enabledCount").textContent = data.items.filter(function (x) { return x.enabled; }).length;
     byId("recordingCount").textContent = Object.values(statuses).filter(function (x) { return x.state === "recording"; }).length;
@@ -67,14 +75,20 @@ async function loadCameras() {
       const snapButton = c.snapshot_url
         ? '<button class="secondary snap" data-id="' + c.id + '">Snapshot</button> '
         : "";
+      const syncButton = c.onvif_url
+        ? '<button class="secondary sync-onvif" data-id="' + c.id + '">Sync ONVIF</button> '
+        : "";
+      const origin = c.onvif_url
+        ? '<span class="pill ok">ONVIF</span><div class="muted small">' + escapeHTML(c.onvif_profile_token || "") + '</div>'
+        : '<span class="pill">RTSP manual</span>';
       return "<tr>" +
         "<td><strong>" + escapeHTML(c.name) + "</strong><div class=\"muted small\">" + escapeHTML(c.description || "") + "</div></td>" +
         "<td>" + escapeHTML(c.city || "—") + "<div class=\"muted small\">" + escapeHTML(c.site || "") + "</div></td>" +
-        "<td><code>" + escapeHTML(c.rtsp_url) + "</code></td>" +
+        "<td>" + origin + "<div class=\"muted small source-url\">" + escapeHTML(c.rtsp_url) + "</div></td>" +
         "<td>" + mediaBadge(statuses[c.id], c.enabled) + "</td>" +
-        "<td class=\"row-actions\"><button class=\"secondary test\" data-id=\"" + c.id + "\">Testar</button> " +
-        snapButton +
-        "<button class=\"secondary timeline\" data-id=\"" + c.id + "\">Timeline</button> " +
+        "<td class=\"row-actions\"><button class=\"play\" data-id=\"" + c.id + "\">Playback</button> " +
+        "<button class=\"secondary test\" data-id=\"" + c.id + "\">Testar</button> " +
+        snapButton + syncButton +
         "<button class=\"danger del\" data-id=\"" + c.id + "\">Excluir</button></td></tr>";
     }).join("");
   } catch (e) {
