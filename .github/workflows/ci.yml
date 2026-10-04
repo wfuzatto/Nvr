@@ -175,6 +175,8 @@ jobs:
             offline/install.sh
             offline/run-portable.sh
             deploy/nvr.service
+            deploy/nvr-plate-ocr.service
+            deploy/plate-ocr.json
             internal/webui/static/hls.min.js
             internal/webui/static/HLS_LICENSE.txt
           if-no-files-found: error
