@@ -56,8 +56,7 @@ func main() {
 	liveManager := live.NewManager(appCtx, broker)
 	webRTCManager, err := webrtclive.New(appCtx, broker, webrtclive.Config{
 		Enabled: cfg.WebRTCEnabled,
-		UDPMin: uint16(cfg.WebRTCPortMin),
-		UDPMax: uint16(cfg.WebRTCPortMax),
+		UDPPort: uint16(cfg.WebRTCUDPPort),
 		PublicIP: cfg.WebRTCPublicIP,
 	})
 	if err != nil {
@@ -82,7 +81,7 @@ func main() {
 		log.Printf("NVR %s listening on http://%s", version, cfg.ListenAddress)
 		log.Printf("media engine enabled: segment=%s retention=%dd max_bytes=%d", cfg.SegmentDuration, cfg.RetentionDays, cfg.StorageMaxBytes)
 		if cfg.WebRTCEnabled {
-			log.Printf("WebRTC enabled: UDP %d-%d public_ip_configured=%t", cfg.WebRTCPortMin, cfg.WebRTCPortMax, cfg.WebRTCPublicIP != "")
+			log.Printf("WebRTC enabled: UDP %d (ICE mux) public_ip_configured=%t", cfg.WebRTCUDPPort, cfg.WebRTCPublicIP != "")
 		} else {
 			log.Printf("WebRTC disabled; live HLS remains available")
 		}
