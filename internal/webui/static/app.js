@@ -182,7 +182,7 @@ async function showLive(id) {
   try {
     const session = await api("/api/v1/cameras/" + id + "/live/session", {
       method:"POST",
-      body:JSON.stringify({ttl_seconds:900})
+      body:JSON.stringify({ttl_seconds:28800})
     });
     attachHLS(session.playlist_url, "Ao vivo HLS local", true);
   } catch (err) {
