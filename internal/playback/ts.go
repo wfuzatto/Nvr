@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/wfuzatto/Nvr/internal/framebroker"
 	"github.com/wfuzatto/Nvr/internal/media"
@@ -132,6 +133,99 @@ func MuxEncodedFramesTS(frames []framebroker.EncodedFrame, w io.Writer) error {
 		if err:=mux.writePES(payload,pts); err!=nil { return err }
 	}
 	return nil
+}
+
+type RangeMuxInfo struct {
+	RequestedFrom time.Time `json:"requested_from"`
+	RequestedTo   time.Time `json:"requested_to"`
+	ActualFrom    time.Time `json:"actual_from"`
+	ActualTo      time.Time `json:"actual_to"`
+	Codec         string    `json:"codec"`
+	Frames        int       `json:"frames"`
+	Keyframes     int       `json:"keyframes"`
+	SourceSegments int      `json:"source_segments"`
+	KeyframeAligned bool    `json:"keyframe_aligned"`
+}
+
+func ExportRangeTS(root string, segments []media.Segment, from, to time.Time, w io.Writer) (RangeMuxInfo,error) {
+	info:=RangeMuxInfo{RequestedFrom:from.UTC(),RequestedTo:to.UTC()}
+	if from.IsZero() || to.IsZero() || !to.After(from) { return info,errors.New("valid from/to range is required") }
+	if len(segments)==0 { return info,errors.New("no segments in requested range") }
+
+	var mux *tsMuxer
+	var started bool
+	var firstTime time.Time
+	var lastTime time.Time
+	var codec string
+
+	for _,segment:=range segments {
+		if segment.Partial || segment.Path=="" { continue }
+		segmentCodec:=strings.ToUpper(segment.Codec)
+		if segmentCodec=="HEVC" { segmentCodec="H265" }
+		if segmentCodec!="H264" && segmentCodec!="H265" { continue }
+		if codec=="" { codec=segmentCodec }
+		if segmentCodec!=codec { return info,errors.New("codec changed inside requested export range") }
+		if segment.ClockRate<=0 { segment.ClockRate=90000 }
+		if segment.FramesPath=="" { segment.FramesPath=segment.Path+".frames.idx" }
+
+		videoPath,err:=safeStoragePath(root,segment.Path)
+		if err!=nil { return info,err }
+		framePath,err:=safeStoragePath(root,segment.FramesPath)
+		if err!=nil { return info,err }
+		frames,err:=readFrameIndex(framePath)
+		if err!=nil || len(frames)==0 { continue }
+		video,err:=os.Open(videoPath)
+		if err!=nil { return info,err }
+
+		bootstrapLen:=frames[0].Offset
+		if bootstrapLen<0 || bootstrapLen>16<<20 { _=video.Close(); return info,errors.New("invalid bootstrap offset") }
+		bootstrap:=make([]byte,bootstrapLen)
+		if bootstrapLen>0 {
+			if _,err:=io.ReadFull(video,bootstrap); err!=nil { _=video.Close(); return info,err }
+		}
+
+		firstTS:=frames[0].Timestamp
+		segmentUsed:=false
+		for _,frame:=range frames {
+			delta:=uint32(frame.Timestamp-firstTS)
+			frameTime:=segment.Start.Add(time.Duration(float64(delta)/float64(segment.ClockRate)*float64(time.Second))).UTC()
+			if frameTime.Before(from) { continue }
+			if frameTime.After(to) { break }
+			if !started {
+				if !frame.Keyframe { continue }
+				started=true
+				firstTime=frameTime
+				codec=segmentCodec
+				mux=&tsMuxer{w:w,cc:make(map[uint16]byte),codec:codec}
+				if err:=mux.writeTables(); err!=nil { _=video.Close(); return info,err }
+			}
+			payload:=make([]byte,frame.Length)
+			if _,err:=video.ReadAt(payload,frame.Offset); err!=nil { _=video.Close(); return info,err }
+			if frame.Keyframe && len(bootstrap)>0 {
+				combined:=make([]byte,0,len(bootstrap)+len(payload))
+				combined=append(combined,bootstrap...)
+				combined=append(combined,payload...)
+				payload=combined
+			}
+			if frame.Keyframe && info.Frames>0 {
+				if err:=mux.writeTables(); err!=nil { _=video.Close(); return info,err }
+			}
+			pts:=uint64(frameTime.Sub(firstTime).Seconds()*90000)
+			if err:=mux.writePES(payload,pts); err!=nil { _=video.Close(); return info,err }
+			info.Frames++
+			if frame.Keyframe { info.Keyframes++ }
+			lastTime=frameTime
+			segmentUsed=true
+		}
+		_ = video.Close()
+		if segmentUsed { info.SourceSegments++ }
+	}
+	if !started || info.Frames==0 { return info,errors.New("no decodable keyframe found in requested range") }
+	info.ActualFrom=firstTime
+	info.ActualTo=lastTime
+	info.Codec=codec
+	info.KeyframeAligned=firstTime.Equal(from)
+	return info,nil
 }
 
 func readFrameIndex(path string) ([]media.FrameIndexEntry,error) {

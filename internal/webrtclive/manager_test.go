@@ -70,35 +70,43 @@ func TestWebRTCSessionDeliversH264RTP(t *testing.T) {
 	defer manager.CloseSession(answer.SessionID)
 	if answer.Type!="answer" || answer.SDP=="" { t.Fatalf("invalid answer: %+v",answer) }
 
-	if err:=client.SetRemoteDescription(webrtc.SessionDescription{Type:webrtc.SDPTypeAnswer,SDP:answer.SDP}); err!=nil {
-		t.Fatal(err)
-	}
-
 	connected:=make(chan struct{},1)
 	client.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		if state==webrtc.PeerConnectionStateConnected {
 			select { case connected<-struct{}{}: default: }
 		}
 	})
-	select {
-	case <-ctx.Done(): t.Fatal("WebRTC connect timeout")
-	case <-connected:
+	if err:=client.SetRemoteDescription(webrtc.SessionDescription{Type:webrtc.SDPTypeAnswer,SDP:answer.SDP}); err!=nil {
+		t.Fatal(err)
+	}
+	if client.ConnectionState()!=webrtc.PeerConnectionStateConnected {
+		select {
+		case <-ctx.Done(): t.Fatal("WebRTC connect timeout")
+		case <-connected:
+		}
 	}
 
-	now:=time.Now().UTC()
 	bootstrap:=[][]byte{{0x67,0x42,0x00,0x1f},{0x68,0xce,0x06,0xe2}}
-	for i:=0;i<5;i++ {
-		base:=uint32(1000+i*7200)
-		broker.Publish(framebroker.EncodedFrame{
-			CameraID:"cam-1",Codec:"H264",ClockRate:90000,
-			Timestamp:base,Keyframe:i==0,Received:now.Add(time.Duration(i)*80*time.Millisecond),
-			Bootstrap:bootstrap,Data:[]byte{0,0,0,1,0x65,0x88,0x84},
-		})
-	}
-
-	select {
-	case <-ctx.Done(): t.Fatal("no RTP received over DTLS-SRTP")
-	case <-rtpReceived:
+	publishTicker:=time.NewTicker(50*time.Millisecond)
+	defer publishTicker.Stop()
+	deadline:=time.NewTimer(4*time.Second)
+	defer deadline.Stop()
+	frameNo:=0
+	for {
+		select {
+		case <-rtpReceived:
+			return
+		case <-deadline.C:
+			t.Fatal("no RTP received over DTLS-SRTP")
+		case now:=<-publishTicker.C:
+			base:=uint32(1000+frameNo*4500)
+			broker.Publish(framebroker.EncodedFrame{
+				CameraID:"cam-1",Codec:"H264",ClockRate:90000,
+				Timestamp:base,Keyframe:frameNo%20==0,Received:now.UTC(),
+				Bootstrap:bootstrap,Data:[]byte{0,0,0,1,0x65,0x88,0x84},
+			})
+			frameNo++
+		}
 	}
 }
 

@@ -89,6 +89,11 @@ Já disponível:
 - playback HLS/MPEG-TS sem reencode;
 - live HLS sob demanda, compartilhado por câmera e sem segunda conexão RTSP;
 - WebRTC H.264 de baixa latência via Pion, compartilhado por câmera e sem transcodificação;
+- RBAC local com Viewer, Operator, Supervisor e Admin;
+- auditoria tamper-evident por hash-chain;
+- mosaico live 1/4/9/16;
+- timeline visual e exportação persistente de evidências;
+- dashboard de saúde e endpoint Prometheus;
 - fallback automático WebRTC → HLS;
 - HLS.js vendorizado e embutido para Chrome/Android;
 - health/readiness;

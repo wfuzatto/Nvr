@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wfuzatto/Nvr/internal/audit"
 	"github.com/wfuzatto/Nvr/internal/config"
+	"github.com/wfuzatto/Nvr/internal/evidence"
 	"github.com/wfuzatto/Nvr/internal/live"
 	"github.com/wfuzatto/Nvr/internal/media"
 	"github.com/wfuzatto/Nvr/internal/model"
@@ -31,6 +32,9 @@ type Dependencies struct {
 	Version string
 	AdminToken string
 	SecretBox *security.SecretBox
+	Auth *security.AuthManager
+	Audit *audit.Log
+	Evidence *evidence.Manager
 	Cameras store.CameraStore
 	Media *media.Manager
 	Live *live.Manager
@@ -40,6 +44,7 @@ type Dependencies struct {
 type Server struct {
 	deps Dependencies
 	mux *http.ServeMux
+	startedAt time.Time
 }
 
 type cameraInput struct {
@@ -55,7 +60,7 @@ type cameraInput struct {
 }
 
 func New(deps Dependencies) *Server {
-	s := &Server{deps: deps, mux: http.NewServeMux()}
+	s := &Server{deps: deps, mux: http.NewServeMux(), startedAt:time.Now().UTC()}
 	s.routes()
 	return s
 }
@@ -66,28 +71,50 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/health", s.handleHealth)
+	s.mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)
+	s.mux.Handle("POST /api/v1/auth/logout", s.auth(http.HandlerFunc(s.handleLogout)))
+	s.mux.Handle("GET /api/v1/auth/me", s.auth(http.HandlerFunc(s.handleMe)))
+
+	s.mux.Handle("GET /api/v1/users", s.require("admin", http.HandlerFunc(s.handleListUsers)))
+	s.mux.Handle("POST /api/v1/users", s.require("admin", s.audited("user.create","user",http.HandlerFunc(s.handleCreateUser))))
+	s.mux.Handle("PUT /api/v1/users/{id}", s.require("admin", s.audited("user.update","user",http.HandlerFunc(s.handleUpdateUser))))
+	s.mux.Handle("PUT /api/v1/users/{id}/password", s.require("admin", s.audited("user.password","user",http.HandlerFunc(s.handleSetUserPassword))))
+	s.mux.Handle("DELETE /api/v1/users/{id}", s.require("admin", s.audited("user.delete","user",http.HandlerFunc(s.handleDeleteUser))))
+
+	s.mux.Handle("GET /api/v1/audit", s.require("evidence", http.HandlerFunc(s.handleAuditList)))
+	s.mux.Handle("GET /api/v1/audit/verify", s.require("evidence", http.HandlerFunc(s.handleAuditVerify)))
+
+	s.mux.Handle("POST /api/v1/cameras/{id}/exports", s.require("evidence", s.audited("evidence.export.create","camera",http.HandlerFunc(s.handleCreateExport))))
+	s.mux.Handle("GET /api/v1/exports", s.require("evidence", http.HandlerFunc(s.handleListExports)))
+	s.mux.Handle("GET /api/v1/exports/{export}", s.require("evidence", http.HandlerFunc(s.handleGetExport)))
+	s.mux.Handle("GET /api/v1/exports/{export}/download", s.require("evidence", http.HandlerFunc(s.handleDownloadExport)))
+
 	s.mux.Handle("GET /api/v1/system/readiness", s.auth(http.HandlerFunc(s.handleReadiness)))
+	s.mux.Handle("GET /api/v1/system/status", s.auth(http.HandlerFunc(s.handleSystemStatus)))
+	s.mux.Handle("GET /metrics", s.auth(http.HandlerFunc(s.handlePrometheus)))
 	s.mux.Handle("GET /api/v1/cameras", s.auth(http.HandlerFunc(s.handleListCameras)))
-	s.mux.Handle("POST /api/v1/cameras", s.auth(http.HandlerFunc(s.handleCreateCamera)))
+	s.mux.Handle("POST /api/v1/cameras", s.require("admin", s.audited("camera.create","camera",http.HandlerFunc(s.handleCreateCamera))))
 	s.mux.Handle("GET /api/v1/cameras/{id}", s.auth(http.HandlerFunc(s.handleGetCamera)))
-	s.mux.Handle("PUT /api/v1/cameras/{id}", s.auth(http.HandlerFunc(s.handleUpdateCamera)))
-	s.mux.Handle("DELETE /api/v1/cameras/{id}", s.auth(http.HandlerFunc(s.handleDeleteCamera)))
-	s.mux.Handle("POST /api/v1/cameras/{id}/test", s.auth(http.HandlerFunc(s.handleTestCamera)))
+	s.mux.Handle("PUT /api/v1/cameras/{id}", s.require("admin", s.audited("camera.update","camera",http.HandlerFunc(s.handleUpdateCamera))))
+	s.mux.Handle("DELETE /api/v1/cameras/{id}", s.require("admin", s.audited("camera.delete","camera",http.HandlerFunc(s.handleDeleteCamera))))
+	s.mux.Handle("POST /api/v1/cameras/{id}/test", s.require("operate", http.HandlerFunc(s.handleTestCamera)))
 	s.mux.Handle("GET /api/v1/cameras/{id}/media/status", s.auth(http.HandlerFunc(s.handleCameraMediaStatus)))
 	s.mux.Handle("GET /api/v1/cameras/{id}/timeline", s.auth(http.HandlerFunc(s.handleTimeline)))
 	s.mux.Handle("GET /api/v1/cameras/{id}/pre-event/segments", s.auth(http.HandlerFunc(s.handlePreEventSegments)))
 	s.mux.Handle("GET /api/v1/cameras/{id}/snapshot", s.auth(http.HandlerFunc(s.handleSnapshot)))
 	s.mux.Handle("GET /api/v1/media/status", s.auth(http.HandlerFunc(s.handleMediaStatuses)))
 	s.mux.Handle("GET /api/v1/media/broker", s.auth(http.HandlerFunc(s.handleBrokerStats)))
-	s.mux.Handle("POST /api/v1/media/retention/run", s.auth(http.HandlerFunc(s.handleRetentionRun)))
-	s.mux.Handle("POST /api/v1/media/protect", s.auth(http.HandlerFunc(s.handleProtectSegment)))
-	s.mux.Handle("GET /api/v1/onvif/discover", s.auth(http.HandlerFunc(s.handleONVIFDiscover)))
-	s.mux.Handle("POST /api/v1/onvif/inspect", s.auth(http.HandlerFunc(s.handleONVIFInspect)))
-	s.mux.Handle("POST /api/v1/cameras/from-onvif", s.auth(http.HandlerFunc(s.handleCreateCameraFromONVIF)))
-	s.mux.Handle("POST /api/v1/cameras/{id}/onvif/sync", s.auth(http.HandlerFunc(s.handleONVIFSync)))
-	s.mux.Handle("GET /api/v1/cameras/{id}/ptz/status", s.auth(http.HandlerFunc(s.handlePTZStatus)))
-	s.mux.Handle("POST /api/v1/cameras/{id}/ptz/move", s.auth(http.HandlerFunc(s.handlePTZMove)))
-	s.mux.Handle("POST /api/v1/cameras/{id}/ptz/stop", s.auth(http.HandlerFunc(s.handlePTZStop)))
+	s.mux.Handle("POST /api/v1/media/retention/run", s.require("admin", s.audited("retention.run","storage",http.HandlerFunc(s.handleRetentionRun))))
+	s.mux.Handle("POST /api/v1/media/protect", s.require("evidence", s.audited("evidence.protect","segment",http.HandlerFunc(s.handleProtectSegment))))
+
+	s.mux.Handle("GET /api/v1/onvif/discover", s.require("admin", http.HandlerFunc(s.handleONVIFDiscover)))
+	s.mux.Handle("POST /api/v1/onvif/inspect", s.require("admin", http.HandlerFunc(s.handleONVIFInspect)))
+	s.mux.Handle("POST /api/v1/cameras/from-onvif", s.require("admin", s.audited("camera.create.onvif","camera",http.HandlerFunc(s.handleCreateCameraFromONVIF))))
+	s.mux.Handle("POST /api/v1/cameras/{id}/onvif/sync", s.require("admin", s.audited("camera.sync.onvif","camera",http.HandlerFunc(s.handleONVIFSync))))
+	s.mux.Handle("GET /api/v1/cameras/{id}/ptz/status", s.require("operate", http.HandlerFunc(s.handlePTZStatus)))
+	s.mux.Handle("POST /api/v1/cameras/{id}/ptz/move", s.require("operate", s.audited("ptz.move","camera",http.HandlerFunc(s.handlePTZMove))))
+	s.mux.Handle("POST /api/v1/cameras/{id}/ptz/stop", s.require("operate", http.HandlerFunc(s.handlePTZStop)))
+
 	s.mux.Handle("POST /api/v1/cameras/{id}/webrtc/session", s.auth(http.HandlerFunc(s.handleWebRTCSession)))
 	s.mux.Handle("DELETE /api/v1/webrtc/sessions/{session}", s.auth(http.HandlerFunc(s.handleWebRTCClose)))
 	s.mux.Handle("GET /api/v1/webrtc/status", s.auth(http.HandlerFunc(s.handleWebRTCStatus)))
@@ -97,6 +124,7 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /api/v1/cameras/{id}/playback/session", s.auth(http.HandlerFunc(s.handlePlaybackSession)))
 	s.mux.HandleFunc("GET /api/v1/playback/{id}/index.m3u8", s.handlePlaybackPlaylist)
 	s.mux.HandleFunc("GET /api/v1/playback/{id}/segment.ts", s.handlePlaybackSegment)
+
 	s.mux.Handle("/", webui.Handler())
 }
 
@@ -385,24 +413,6 @@ func validateCameraInput(in cameraInput, requireRTSP bool) error {
 	if in.Latitude != nil && (*in.Latitude < -90 || *in.Latitude > 90) { return errors.New("latitude must be between -90 and 90") }
 	if in.Longitude != nil && (*in.Longitude < -180 || *in.Longitude > 180) { return errors.New("longitude must be between -180 and 180") }
 	return nil
-}
-
-func (s *Server) auth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		auth := r.Header.Get("Authorization")
-		if !strings.HasPrefix(auth, "Bearer ") {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			writeError(w, http.StatusUnauthorized, "invalid or missing administrator token")
-			return
-		}
-		token := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
-		if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(s.deps.AdminToken)) != 1 {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			writeError(w, http.StatusUnauthorized, "invalid or missing administrator token")
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 func decodeJSON(r *http.Request, dst any) error {

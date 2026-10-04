@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/wfuzatto/Nvr/internal/framebroker"
 	"github.com/wfuzatto/Nvr/internal/media"
@@ -77,4 +78,43 @@ func TestMuxEncodedFramesTS(t *testing.T) {
 	for i:=0;i<out.Len();i+=188 {
 		if out.Bytes()[i]!=0x47 { t.Fatalf("missing sync at packet %d",i/188) }
 	}
+}
+
+func TestExportRangeTS(t *testing.T) {
+	root:=t.TempDir()
+	dir:=filepath.Join(root,"cam-1","2026-10-04")
+	if err:=os.MkdirAll(dir,0o750); err!=nil { t.Fatal(err) }
+	videoPath:=filepath.Join(dir,"range.h264")
+	bootstrap:=[]byte{0,0,0,1,0x67,1,2,0,0,0,1,0x68,3,4}
+	frames:=[][]byte{
+		{0,0,0,1,0x65,1},
+		{0,0,0,1,0x41,2},
+		{0,0,0,1,0x65,3},
+		{0,0,0,1,0x41,4},
+	}
+	all:=append([]byte{},bootstrap...)
+	offsets:=make([]int64,0,len(frames))
+	for _,frame:=range frames { offsets=append(offsets,int64(len(all))); all=append(all,frame...) }
+	if err:=os.WriteFile(videoPath,all,0o640); err!=nil { t.Fatal(err) }
+	idx:=videoPath+".frames.idx"
+	ff,err:=os.Create(idx); if err!=nil { t.Fatal(err) }
+	header:=make([]byte,media.FrameIndexHeaderSize); copy(header[:4],[]byte("NVFI")); header[4]=1; header[5]=media.FrameIndexRecordSize
+	if _,err:=ff.Write(header); err!=nil { t.Fatal(err) }
+	for i,frame:=range frames {
+		rec:=make([]byte,media.FrameIndexRecordSize)
+		binary.BigEndian.PutUint64(rec[0:8],uint64(offsets[i]))
+		binary.BigEndian.PutUint32(rec[8:12],uint32(len(frame)))
+		binary.BigEndian.PutUint32(rec[12:16],uint32(1000+i*9000))
+		if i==0 || i==2 { rec[16]=1 }
+		if _,err:=ff.Write(rec); err!=nil { t.Fatal(err) }
+	}
+	_ = ff.Close()
+	start:=time.Date(2026,10,4,12,0,0,0,time.UTC)
+	segment:=media.Segment{CameraID:"cam-1",Codec:"H264",ClockRate:90000,Path:"cam-1/2026-10-04/range.h264",FramesPath:"cam-1/2026-10-04/range.h264.frames.idx",Start:start,End:start.Add(400*time.Millisecond)}
+	var out bytes.Buffer
+	info,err:=ExportRangeTS(root,[]media.Segment{segment},start.Add(50*time.Millisecond),start.Add(350*time.Millisecond),&out)
+	if err!=nil { t.Fatal(err) }
+	if !info.ActualFrom.Equal(start.Add(200*time.Millisecond)) { t.Fatalf("actual from=%s",info.ActualFrom) }
+	if info.Frames!=2 || info.Keyframes!=1 { t.Fatalf("info=%+v",info) }
+	if out.Len()==0 || out.Len()%188!=0 { t.Fatalf("invalid TS length=%d",out.Len()) }
 }

@@ -9,23 +9,45 @@
 <body>
   <header>
     <div><strong>NVR</strong> <span class="muted">Control Center</span></div>
-    <div id="health" class="pill">verificando...</div>
+    <div class="header-actions">
+      <span id="currentUser" class="muted small"></span>
+      <div id="health" class="pill">verificando...</div>
+    </div>
   </header>
   <main>
     <section class="hero">
       <div>
         <div class="eyebrow">EDGE-FIRST • OFFLINE-FIRST</div>
         <h1>Videomonitoramento</h1>
-        <p>Core municipal com gravação RTSP local, retenção, timeline e pipeline de análise sem dependências online.</p>
+        <p>Operação local com gravação, live, timeline, evidências, ONVIF, WebRTC e auditoria sem dependências online.</p>
       </div>
-      <button id="authBtn" class="secondary">Token administrador</button>
+      <div class="toolbar hero-tools">
+        <button id="mosaicBtn" class="secondary">Mosaico</button>
+        <button id="systemBtn" class="secondary">Saúde</button>
+        <button id="adminBtn" class="secondary" hidden>Administração</button>
+        <button id="authBtn" class="secondary">Entrar</button>
+      </div>
     </section>
 
     <section class="stats">
       <article><span>Câmeras</span><strong id="cameraCount">—</strong></article>
       <article><span>Habilitadas</span><strong id="enabledCount">—</strong></article>
       <article><span>Gravando</span><strong id="recordingCount">—</strong></article>
-      <article><span>Runtime</span><strong>Offline</strong></article>
+      <article><span>Disco livre</span><strong id="diskFree">—</strong></article>
+    </section>
+
+    <section id="mosaicPanel" class="panel mosaic-panel" hidden>
+      <div class="panel-head">
+        <div><div class="eyebrow">LIVE HLS</div><h2>Mosaico</h2></div>
+        <div class="toolbar">
+          <button class="secondary mosaic-size" data-size="1">1</button>
+          <button class="secondary mosaic-size" data-size="4">4</button>
+          <button class="secondary mosaic-size" data-size="9">9</button>
+          <button class="secondary mosaic-size" data-size="16">16</button>
+          <button id="closeMosaic" class="secondary">Fechar</button>
+        </div>
+      </div>
+      <div id="mosaicGrid" class="mosaic-grid grid-4"></div>
     </section>
 
     <section class="panel">
@@ -36,8 +58,8 @@
       <div id="notice"></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Nome</th><th>Cidade / Site</th><th>RTSP</th><th>Mídia</th><th>Ações</th></tr></thead>
-          <tbody id="cameraRows"><tr><td colspan="5" class="empty">Informe o token para carregar as câmeras.</td></tr></tbody>
+          <thead><tr><th>Nome</th><th>Cidade / Site</th><th>Origem</th><th>Mídia</th><th>Ações</th></tr></thead>
+          <tbody id="cameraRows"><tr><td colspan="5" class="empty">Autentique-se para carregar as câmeras.</td></tr></tbody>
         </table>
       </div>
     </section>
@@ -49,7 +71,7 @@
       <label>Nome<input name="name" required autocomplete="off"></label>
       <div class="grid2"><label>Cidade<input name="city"></label><label>Site / Região<input name="site"></label></div>
       <label>URL RTSP<input name="rtsp_url" required placeholder="rtsp://usuario:senha@10.0.0.10:554/..."></label>
-      <label>URL de snapshot <span class="muted small">(opcional)</span><input name="snapshot_url" placeholder="http://usuario:senha@10.0.0.10/ISAPI/Streaming/channels/101/picture"></label>
+      <label>URL de snapshot <span class="muted small">(opcional)</span><input name="snapshot_url" placeholder="http://usuario:senha@10.0.0.10/.../picture"></label>
       <label>Descrição<textarea name="description" rows="3"></textarea></label>
       <label class="check"><input name="enabled" type="checkbox" checked> Câmera habilitada e gravando</label>
       <div class="actions"><button type="button" class="secondary" id="cancelDialog">Cancelar</button><button type="submit">Salvar</button></div>
@@ -62,10 +84,7 @@
         <div><div class="eyebrow">ONVIF</div><h2>Descobrir e adicionar câmera</h2></div>
         <button type="button" class="icon" id="closeOnvif">×</button>
       </div>
-      <div class="onvif-actions">
-        <button type="button" class="secondary" id="scanOnvif">Procurar na rede</button>
-        <span id="onvifScanStatus" class="muted"></span>
-      </div>
+      <div class="onvif-actions"><button type="button" class="secondary" id="scanOnvif">Procurar na rede</button><span id="onvifScanStatus" class="muted"></span></div>
       <div id="onvifDevices" class="device-list"></div>
       <div class="grid2">
         <label>Endpoint ONVIF<input id="onvifEndpoint" name="endpoint" placeholder="http://10.0.0.10/onvif/device_service" required></label>
@@ -75,15 +94,9 @@
         <label>Senha<input name="password" type="password" autocomplete="current-password"></label>
         <label>Perfil<select id="onvifProfile" name="profile_token" disabled><option>Leia os perfis primeiro</option></select></label>
       </div>
-      <div class="actions left">
-        <button type="button" class="secondary" id="inspectOnvif">Ler dispositivo e perfis</button>
-        <span id="onvifDeviceInfo" class="muted"></span>
-      </div>
+      <div class="actions left"><button type="button" class="secondary" id="inspectOnvif">Ler dispositivo e perfis</button><span id="onvifDeviceInfo" class="muted"></span></div>
       <hr>
-      <div class="grid2">
-        <label>Nome no NVR<input name="name" required></label>
-        <label>Cidade<input name="city"></label>
-      </div>
+      <div class="grid2"><label>Nome no NVR<input name="name" required></label><label>Cidade<input name="city"></label></div>
       <label>Site / Região<input name="site"></label>
       <label>Descrição<textarea name="description" rows="2"></textarea></label>
       <label class="check"><input name="enabled" type="checkbox" checked> Adicionar habilitada e iniciar gravação</label>
@@ -92,12 +105,20 @@
   </dialog>
 
   <dialog id="tokenDialog">
-    <form id="tokenForm">
-      <div class="dialog-head"><h2>Administrador</h2><button type="button" class="icon" id="closeToken">×</button></div>
-      <p class="muted">Use o token gerado no primeiro boot. Ele fica salvo apenas nesta sessão do navegador.</p>
-      <label>Token<input id="tokenInput" type="password" autocomplete="off" required></label>
+    <div class="dialog-head"><h2>Acesso ao NVR</h2><button type="button" class="icon" id="closeToken">×</button></div>
+    <form id="loginForm">
+      <label>Usuário<input name="username" autocomplete="username" required></label>
+      <label>Senha<input name="password" type="password" autocomplete="current-password" required></label>
       <div class="actions"><button type="submit">Entrar</button></div>
     </form>
+    <details class="bootstrap-box">
+      <summary>Token bootstrap / emergência</summary>
+      <form id="tokenForm">
+        <p class="muted small">Use o token do primeiro boot apenas para implantação ou recuperação administrativa.</p>
+        <label>Token<input id="tokenInput" type="password" autocomplete="off" required></label>
+        <div class="actions"><button type="submit" class="secondary">Usar token</button></div>
+      </form>
+    </details>
   </dialog>
 
   <dialog id="snapshotDialog" class="snapshot-dialog">
@@ -108,11 +129,23 @@
 
   <dialog id="playerDialog" class="player-dialog">
     <div class="dialog-head">
-      <div><div class="eyebrow">PLAYBACK</div><h2 id="playerTitle">Gravações</h2></div>
+      <div><div class="eyebrow">VIDEO</div><h2 id="playerTitle">Gravações</h2></div>
       <button type="button" class="icon" id="closePlayer">×</button>
     </div>
     <div id="playerStatus" class="muted player-status">Preparando...</div>
     <video id="playerVideo" controls playsinline preload="metadata"></video>
+    <section id="timelineControls" class="timeline-controls">
+      <div class="grid2">
+        <label>De<input id="timelineFrom" type="datetime-local" step="1"></label>
+        <label>Até<input id="timelineTo" type="datetime-local" step="1"></label>
+      </div>
+      <div class="toolbar">
+        <button id="loadTimeline" type="button" class="secondary">Carregar timeline</button>
+        <button id="exportEvidence" type="button" class="secondary">Exportar evidência</button>
+      </div>
+      <div id="timelineBar" class="timeline-bar"></div>
+      <div id="timelineInfo" class="muted small"></div>
+    </section>
     <section id="ptzPanel" class="ptz-panel" hidden>
       <div class="eyebrow">PTZ ONVIF</div>
       <div class="ptz-grid">
@@ -122,10 +155,36 @@
         <button data-ptz="right" class="secondary">▶</button>
         <button data-ptz="down" class="secondary">▼</button>
       </div>
-      <div class="ptz-zoom">
-        <button data-ptz="zoomout" class="secondary">− Zoom</button>
-        <button data-ptz="zoomin" class="secondary">+ Zoom</button>
-      </div>
+      <div class="ptz-zoom"><button data-ptz="zoomout" class="secondary">− Zoom</button><button data-ptz="zoomin" class="secondary">+ Zoom</button></div>
+    </section>
+  </dialog>
+
+  <dialog id="systemDialog" class="wide-dialog">
+    <div class="dialog-head"><div><div class="eyebrow">24/7</div><h2>Saúde do nó</h2></div><button type="button" class="icon" id="closeSystem">×</button></div>
+    <div id="systemCards" class="system-cards"></div>
+    <pre id="systemRaw" class="raw-panel"></pre>
+  </dialog>
+
+  <dialog id="adminDialog" class="wide-dialog">
+    <div class="dialog-head"><div><div class="eyebrow">ADMIN</div><h2>Administração</h2></div><button type="button" class="icon" id="closeAdmin">×</button></div>
+    <section>
+      <div class="section-head"><h3>Usuários</h3><button id="refreshUsers" class="secondary">Atualizar</button></div>
+      <form id="userForm" class="admin-form">
+        <input name="username" placeholder="usuário" required>
+        <input name="display_name" placeholder="nome">
+        <input name="password" type="password" placeholder="senha (mín. 10)" required>
+        <select name="role"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="supervisor">Supervisor</option><option value="admin">Admin</option></select>
+        <button type="submit">Criar</button>
+      </form>
+      <div id="usersList" class="admin-list"></div>
+    </section>
+    <section>
+      <div class="section-head"><h3>Evidências</h3><button id="refreshExports" class="secondary">Atualizar</button></div>
+      <div id="exportsList" class="admin-list"></div>
+    </section>
+    <section>
+      <div class="section-head"><h3>Auditoria</h3><div class="toolbar"><button id="verifyAudit" class="secondary">Verificar cadeia</button><button id="refreshAudit" class="secondary">Atualizar</button></div></div>
+      <div id="auditList" class="admin-list audit-list"></div>
     </section>
   </dialog>
 

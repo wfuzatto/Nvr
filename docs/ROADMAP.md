@@ -19,6 +19,10 @@
 - [x] playback HLS/VOD sem reencode;
 - [x] live HLS sem reencode;
 - [x] WebRTC H.264 de baixa latência com fallback HLS;
+- [x] mosaico live 1/4/9/16;
+- [x] timeline visual por intervalo;
+- [x] dashboard de saúde + métricas Prometheus;
+- [x] auditoria encadeada e verificação de integridade;
 - [x] retenção;
 - [x] snapshot HTTP/Digest quando a câmera fornece endpoint;
 - [x] proteção de segmento/evidência;
