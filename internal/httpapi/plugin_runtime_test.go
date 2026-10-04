@@ -22,9 +22,11 @@ func TestPluginEventEvidenceAndSearch(t *testing.T){
 	cams,err:=store.OpenFileCameraStore(dir+"/cameras.json");if err!=nil{t.Fatal(err)}
 	if err:=cams.Put(model.Camera{ID:"cam1",Name:"Camera 1",City:"Cidade",Site:"Centro",Enabled:true});err!=nil{t.Fatal(err)}
 	events,err:=store.OpenFileEventStore(dir+"/events.jsonl");if err!=nil{t.Fatal(err)}
+	hotlist,err:=store.OpenFileHotlistStore(dir+"/hotlist.json");if err!=nil{t.Fatal(err)}
+	if _,err:=hotlist.Put(model.HotlistEntry{Plate:"ABC1D23",Label:"teste",Enabled:true});err!=nil{t.Fatal(err)}
 	auth,err:=security.OpenAuthManager(dir+"/users.json","admin");if err!=nil{t.Fatal(err)}
 	api:=New(Dependencies{Config:config.Config{SnapshotTimeout:time.Second},AdminToken:"admin",Auth:auth,Cameras:cams})
-	AttachPluginRoutes(api,PluginDependencies{Token:"plugin",Events:events,EvidenceDir:dir+"/evidence"})
+	AttachPluginRoutes(api,PluginDependencies{Token:"plugin",Events:events,EvidenceDir:dir+"/evidence",Hotlist:hotlist})
 	srv:=httptest.NewServer(api.Handler());defer srv.Close()
 
 	var img bytes.Buffer
@@ -61,10 +63,14 @@ func TestPluginEventEvidenceAndSearch(t *testing.T){
 	req.Header.Set("Authorization","Bearer admin")
 	resp,err=http.DefaultClient.Do(req);if err!=nil{t.Fatal(err)}
 	if resp.StatusCode!=http.StatusOK{t.Fatalf("search status=%d",resp.StatusCode)}
-	var result struct{Count int `json:"count"`}
+	var result struct{
+		Count int `json:"count"`
+		Items []model.EventEnvelope `json:"items"`
+	}
 	if err:=json.NewDecoder(resp.Body).Decode(&result);err!=nil{t.Fatal(err)}
 	_ = resp.Body.Close()
 	if result.Count!=1{t.Fatalf("count=%d",result.Count)}
+	if len(result.Items)!=1||!result.Items[0].Alert||result.Items[0].AlertLabel!="teste"{t.Fatalf("alert=%+v",result.Items)}
 
 	req,_=http.NewRequest(http.MethodGet,srv.URL+"/api/v1/events/evt1/evidence",nil)
 	req.Header.Set("Authorization","Bearer admin")
