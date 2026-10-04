@@ -14,8 +14,11 @@ type Config struct {
 	RuntimeDir         string
 	StorageDir         string
 	CameraDBFile       string
+	EventDBFile        string
+	EvidenceDir        string
 	MasterKeyFile      string
 	AdminTokenFile     string
+	PluginTokenFile    string
 	SegmentDuration    time.Duration
 	RetentionDays      int
 	StorageMaxBytes    int64
@@ -55,21 +58,11 @@ func Load() (Config, error) {
 	webRTCUDPPort, err := envInt("NVR_WEBRTC_UDP_PORT", 50000)
 	if err != nil { return Config{}, err }
 
-	if segmentDuration < 5*time.Second {
-		return Config{}, fmt.Errorf("NVR_SEGMENT_SECONDS must be at least 5")
-	}
-	if supervisorInterval < time.Second {
-		return Config{}, fmt.Errorf("NVR_SUPERVISOR_SECONDS must be at least 1")
-	}
-	if retentionDays < 0 {
-		return Config{}, fmt.Errorf("NVR_RETENTION_DAYS cannot be negative")
-	}
-	if storageMaxBytes < 0 {
-		return Config{}, fmt.Errorf("NVR_STORAGE_MAX_BYTES cannot be negative")
-	}
-	if webRTCUDPPort < 1024 || webRTCUDPPort > 65535 {
-		return Config{}, fmt.Errorf("NVR_WEBRTC_UDP_PORT must be between 1024 and 65535")
-	}
+	if segmentDuration < 5*time.Second { return Config{}, fmt.Errorf("NVR_SEGMENT_SECONDS must be at least 5") }
+	if supervisorInterval < time.Second { return Config{}, fmt.Errorf("NVR_SUPERVISOR_SECONDS must be at least 1") }
+	if retentionDays < 0 { return Config{}, fmt.Errorf("NVR_RETENTION_DAYS cannot be negative") }
+	if storageMaxBytes < 0 { return Config{}, fmt.Errorf("NVR_STORAGE_MAX_BYTES cannot be negative") }
+	if webRTCUDPPort < 1024 || webRTCUDPPort > 65535 { return Config{}, fmt.Errorf("NVR_WEBRTC_UDP_PORT must be between 1024 and 65535") }
 
 	cfg := Config{
 		ListenAddress:      env("NVR_LISTEN", "0.0.0.0:8080"),
@@ -77,8 +70,11 @@ func Load() (Config, error) {
 		RuntimeDir:         runtimeDir,
 		StorageDir:         storageDir,
 		CameraDBFile:       filepath.Join(dataDir, "cameras.json"),
+		EventDBFile:        filepath.Join(dataDir, "events", "events.jsonl"),
+		EvidenceDir:        filepath.Join(storageDir, "evidence"),
 		MasterKeyFile:      filepath.Join(dataDir, "master.key"),
 		AdminTokenFile:     filepath.Join(dataDir, "admin.token"),
+		PluginTokenFile:    filepath.Join(dataDir, "plugin.token"),
 		SegmentDuration:    segmentDuration,
 		RetentionDays:      retentionDays,
 		StorageMaxBytes:    storageMaxBytes,
@@ -91,46 +87,30 @@ func Load() (Config, error) {
 		WebRTCUDPPort:      webRTCUDPPort,
 		WebRTCPublicIP:     env("NVR_WEBRTC_PUBLIC_IP", ""),
 	}
-	for _, dir := range []string{cfg.DataDir, cfg.RuntimeDir, cfg.StorageDir} {
-		if err := os.MkdirAll(dir, 0o750); err != nil {
-			return Config{}, fmt.Errorf("create %s: %w", dir, err)
-		}
+	for _, dir := range []string{cfg.DataDir, cfg.RuntimeDir, cfg.StorageDir, filepath.Dir(cfg.EventDBFile), cfg.EvidenceDir} {
+		if err := os.MkdirAll(dir, 0o750); err != nil { return Config{}, fmt.Errorf("create %s: %w", dir, err) }
 	}
 	return cfg, nil
 }
 
-func env(name, fallback string) string {
-	if value := os.Getenv(name); value != "" { return value }
-	return fallback
-}
-
+func env(name, fallback string) string { if value := os.Getenv(name); value != "" { return value }; return fallback }
 func envInt(name string, fallback int) (int, error) {
-	raw := os.Getenv(name)
-	if raw == "" { return fallback, nil }
-	value, err := strconv.Atoi(raw)
-	if err != nil { return 0, fmt.Errorf("%s must be an integer: %w", name, err) }
+	raw := os.Getenv(name); if raw == "" { return fallback, nil }
+	value, err := strconv.Atoi(raw); if err != nil { return 0, fmt.Errorf("%s must be an integer: %w", name, err) }
 	return value, nil
 }
-
 func envInt64(name string, fallback int64) (int64, error) {
-	raw := os.Getenv(name)
-	if raw == "" { return fallback, nil }
-	value, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil { return 0, fmt.Errorf("%s must be an integer: %w", name, err) }
+	raw := os.Getenv(name); if raw == "" { return fallback, nil }
+	value, err := strconv.ParseInt(raw, 10, 64); if err != nil { return 0, fmt.Errorf("%s must be an integer: %w", name, err) }
 	return value, nil
 }
-
 func envDurationSeconds(name string, fallback int) (time.Duration, error) {
-	value, err := envInt(name, fallback)
-	if err != nil { return 0, err }
+	value, err := envInt(name, fallback); if err != nil { return 0, err }
 	if value <= 0 { return 0, fmt.Errorf("%s must be greater than zero", name) }
 	return time.Duration(value) * time.Second, nil
 }
-
 func envBool(name string, fallback bool) (bool, error) {
-	raw := os.Getenv(name)
-	if raw == "" { return fallback, nil }
-	value, err := strconv.ParseBool(raw)
-	if err != nil { return false, fmt.Errorf("%s must be a boolean: %w", name, err) }
+	raw := os.Getenv(name); if raw == "" { return fallback, nil }
+	value, err := strconv.ParseBool(raw); if err != nil { return false, fmt.Errorf("%s must be a boolean: %w", name, err) }
 	return value, nil
 }
