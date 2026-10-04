@@ -1,19 +1,35 @@
 {
   "schema_version": 1,
-  "source_commit": "2cc695829feb25decfcf9ee35b486cf1e3b2c07c",
+  "source_commit": "181ddd4ef2ccc60dc81ef50b68b62654b92c9180",
   "go_version": "go1.24.13",
   "artifacts": [
     {
       "os": "linux",
       "arch": "amd64",
       "path": "offline/bin/linux-amd64/nvr",
-      "sha256": "5f6e04290eb6295e8fc55b23f2b14d56b09fdc159f45a8494510bda7681ecec9"
+      "sha256": "f6532c27c3976bfce940a383004af22a2be3643bf830d53201a9287a8b063d48"
     },
     {
       "os": "linux",
       "arch": "arm64",
       "path": "offline/bin/linux-arm64/nvr",
-      "sha256": "e64140ddb1db949c4f385e71dd123b88b19dfb54293a91c946d78a179a31a768"
+      "sha256": "a8f235f98a572487107dd8b712d19bcb13a826fae2db7ad6e63d4149993b7b01"
+    },
+    {
+      "component": "plate-ocr",
+      "source_commit": "6be42f0a20664b99f72613286fa5d98be502113b",
+      "os": "linux",
+      "arch": "amd64",
+      "path": "offline/plugins/plate-ocr/linux-amd64/plate-ocr",
+      "sha256": "580e656a8e2a349da07a50005ff54d1c1b063993f364ebd782ad8e6c9bc64f8d"
+    },
+    {
+      "component": "plate-ocr",
+      "source_commit": "6be42f0a20664b99f72613286fa5d98be502113b",
+      "os": "linux",
+      "arch": "arm64",
+      "path": "offline/plugins/plate-ocr/linux-arm64/plate-ocr",
+      "sha256": "63b0dab87340f580820cbd934f229ce69077685b0659d93136c4014acca8d7b5"
     }
   ]
 }
