@@ -27,9 +27,9 @@ func (s *Server) handleLiveSession(w http.ResponseWriter, r *http.Request) {
 		TTLSeconds int `json:"ttl_seconds"`
 	}
 	if err:=decodeJSON(r,&in); err!=nil { writeError(w,http.StatusBadRequest,err.Error()); return }
-	ttl:=15*time.Minute
+	ttl:=8*time.Hour
 	if in.TTLSeconds!=0 {
-		if in.TTLSeconds<30 || in.TTLSeconds>3600 { writeError(w,http.StatusBadRequest,"ttl_seconds must be between 30 and 3600"); return }
+		if in.TTLSeconds<30 || in.TTLSeconds>43200 { writeError(w,http.StatusBadRequest,"ttl_seconds must be between 30 and 43200"); return }
 		ttl=time.Duration(in.TTLSeconds)*time.Second
 	}
 	token:=playback.SignToken(s.deps.AdminToken,camera.ID,ttl)
@@ -68,7 +68,8 @@ func (s *Server) handleLivePlaylist(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w,"#EXT-X-TARGETDURATION:%d\n",live.TargetDuration(segments))
 	fmt.Fprintf(w,"#EXT-X-MEDIA-SEQUENCE:%d\n",segments[0].Sequence)
 	fmt.Fprintln(w,"#EXT-X-INDEPENDENT-SEGMENTS")
-	for _,segment:=range segments {
+	for i,segment:=range segments {
+		if i>0 { fmt.Fprintln(w,"#EXT-X-DISCONTINUITY") }
 		fmt.Fprintf(w,"#EXT-X-PROGRAM-DATE-TIME:%s\n",segment.ProgramDateTime.UTC().Format(time.RFC3339Nano))
 		fmt.Fprintf(w,"#EXTINF:%.3f,\n",segment.Duration)
 		q:=url.Values{}
