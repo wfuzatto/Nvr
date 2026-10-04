@@ -280,9 +280,38 @@ async function ptzAction(action) {
 
 byId("authBtn").onclick = function () { byId("tokenDialog").showModal(); };
 byId("addBtn").onclick = function () { (state.token ? byId("cameraDialog") : byId("tokenDialog")).showModal(); };
+byId("discoverBtn").onclick = function () { (state.token ? byId("onvifDialog") : byId("tokenDialog")).showModal(); };
 byId("closeDialog").onclick = byId("cancelDialog").onclick = function () { byId("cameraDialog").close(); };
 byId("closeToken").onclick = function () { byId("tokenDialog").close(); };
 byId("closeSnapshot").onclick = function () { byId("snapshotDialog").close(); };
+byId("closeOnvif").onclick = function () { byId("onvifDialog").close(); };
+byId("closePlayer").onclick = function () { destroyPlayback(); state.playerCamera = null; byId("playerDialog").close(); };
+
+byId("scanOnvif").onclick = async function () {
+  byId("onvifScanStatus").textContent = "Procurando...";
+  byId("onvifDevices").innerHTML = "";
+  try {
+    const result = await api("/api/v1/onvif/discover?timeout_ms=3000");
+    renderONVIFDevices(result.items || []);
+    byId("onvifScanStatus").textContent = result.count + " dispositivo(s)";
+  } catch (err) {
+    byId("onvifScanStatus").textContent = err.message;
+  }
+};
+
+byId("onvifDevices").onclick = function (e) {
+  const button = e.target.closest("[data-xaddr]");
+  if (!button) return;
+  byId("onvifEndpoint").value = button.dataset.xaddr || "";
+  byId("onvifDeviceInfo").textContent = "Endpoint selecionado. Informe as credenciais e leia os perfis.";
+};
+
+byId("inspectOnvif").onclick = inspectONVIF;
+
+byId("ptzPanel").onclick = function (e) {
+  const button = e.target.closest("[data-ptz]");
+  if (button) ptzAction(button.dataset.ptz);
+};
 
 byId("tokenForm").onsubmit = async function (e) {
   e.preventDefault();
@@ -294,6 +323,47 @@ byId("tokenForm").onsubmit = async function (e) {
     notice("Autenticado.", false);
     loadCameras();
   } catch (err) { notice(err.message, true); }
+};
+
+byId("onvifForm").onsubmit = async function (e) {
+  e.preventDefault();
+  const form = new FormData(e.target);
+  const select = byId("onvifProfile");
+  const option = select.options[select.selectedIndex];
+  if (!option || !option.value) {
+    byId("onvifDeviceInfo").textContent = "Selecione um perfil ONVIF.";
+    return;
+  }
+  const payload = {
+    endpoint: String(form.get("endpoint") || "").trim(),
+    username: String(form.get("username") || ""),
+    password: String(form.get("password") || ""),
+    profile_token: option.value,
+    media_version: Number(option.dataset.version || 1),
+    name: String(form.get("name") || "").trim(),
+    city: String(form.get("city") || "").trim(),
+    site: String(form.get("site") || "").trim(),
+    description: String(form.get("description") || "").trim(),
+    enabled: form.get("enabled") === "on"
+  };
+  try {
+    const result = await api("/api/v1/cameras/from-onvif", {
+      method:"POST",
+      body:JSON.stringify(payload)
+    });
+    e.target.reset();
+    state.onvifProfiles = [];
+    byId("onvifProfile").innerHTML = "<option>Leia os perfis primeiro</option>";
+    byId("onvifProfile").disabled = true;
+    byId("addOnvifCamera").disabled = true;
+    byId("onvifDevices").innerHTML = "";
+    byId("onvifDeviceInfo").textContent = "";
+    byId("onvifDialog").close();
+    notice("Câmera ONVIF adicionada com perfil " + (result.profile.name || result.profile.token) + ".", false);
+    setTimeout(loadCameras, 500);
+  } catch (err) {
+    byId("onvifDeviceInfo").textContent = err.message;
+  }
 };
 
 byId("cameraForm").onsubmit = async function (e) {
@@ -321,6 +391,19 @@ byId("cameraForm").onsubmit = async function (e) {
 byId("cameraRows").onclick = async function (e) {
   const id = e.target.dataset.id;
   if (!id) return;
+
+  if (e.target.classList.contains("play")) {
+    showPlayback(id);
+  }
+
+  if (e.target.classList.contains("sync-onvif")) {
+    notice("Sincronizando perfil ONVIF...", false);
+    try {
+      await api("/api/v1/cameras/" + id + "/onvif/sync", {method:"POST", body:"{}"});
+      notice("ONVIF sincronizado; RTSP e snapshot atualizados.", false);
+      setTimeout(loadCameras, 500);
+    } catch (err) { notice(err.message, true); }
+  }
 
   if (e.target.classList.contains("test")) {
     notice("Testando RTSP...", false);
