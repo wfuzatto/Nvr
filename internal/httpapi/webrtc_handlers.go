@@ -18,7 +18,10 @@ type webRTCOfferInput struct {
 
 func (s *Server) handleWebRTCSession(w http.ResponseWriter, r *http.Request) {
 	if s.deps.WebRTC==nil {
-		writeError(w,http.StatusServiceUnavailable,"WebRTC unavailable")
+		writeJSON(w,http.StatusServiceUnavailable,map[string]any{
+			"error":"WebRTC unavailable",
+			"fallback":"hls",
+		})
 		return
 	}
 	camera,err:=s.deps.Cameras.Get(r.PathValue("id"))
