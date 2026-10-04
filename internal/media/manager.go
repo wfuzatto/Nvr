@@ -2,7 +2,6 @@ package media
 
 import (
 	"context"
-	"errors"
 	"sort"
 	"sync"
 	"time"
@@ -28,6 +27,7 @@ type CameraStatus struct {
 	FramesPublished uint64    `json:"frames_published"`
 	SegmentsWritten uint64    `json:"segments_written"`
 	BytesWritten    int64     `json:"bytes_written"`
+	ActiveSegment   *Segment  `json:"active_segment,omitempty"`
 }
 
 type workerHandle struct {
@@ -109,7 +109,16 @@ func (m *Manager) Timeline(cameraID string, from, to time.Time, limit int) ([]Se
 
 func (m *Manager) RecentSegments(cameraID string) ([]Segment, error) {
 	now := time.Now().UTC()
-	return ListSegments(m.cfg.StorageDir, cameraID, now.Add(-m.cfg.PreEventWindow), now, 500)
+	items, err := ListSegments(m.cfg.StorageDir, cameraID, now.Add(-m.cfg.PreEventWindow), now, 500)
+	if err != nil { return nil, err }
+	if status, ok := m.Status(cameraID); ok && status.ActiveSegment != nil {
+		active := *status.ActiveSegment
+		if active.End.IsZero() { active.End = now }
+		if !active.End.Before(now.Add(-m.cfg.PreEventWindow)) {
+			items = append(items, active)
+		}
+	}
+	return items, nil
 }
 
 func (m *Manager) RunRetentionNow() (RetentionReport, error) {
@@ -125,7 +134,9 @@ func (m *Manager) BrokerStats() map[string]uint64 { return m.broker.Stats() }
 func (m *Manager) syncWorkers(parent context.Context) {
 	cameras := m.cameras.List()
 	desired := make(map[string]model.Camera)
+	present := make(map[string]bool)
 	for _, camera := range cameras {
+		present[camera.ID] = true
 		if camera.Enabled { desired[camera.ID] = camera }
 	}
 
@@ -141,6 +152,9 @@ func (m *Manager) syncWorkers(parent context.Context) {
 			status.State = "stopped"
 			m.statuses[id] = status
 		}
+	}
+	for id := range m.statuses {
+		if !present[id] { delete(m.statuses, id) }
 	}
 	for id, camera := range desired {
 		if _, exists := m.workers[id]; exists { continue }
@@ -184,7 +198,9 @@ func (m *Manager) runCamera(ctx context.Context, camera model.Camera) {
 			return
 		}
 
+		sessionStarted := time.Now()
 		err = m.recordSession(ctx, camera.ID, rawURL)
+		if time.Since(sessionStarted) >= 30*time.Second { backoff = time.Second }
 		if ctx.Err() != nil {
 			m.updateStatus(camera.ID, func(s *CameraStatus) { s.State = "stopped" })
 			return
@@ -243,6 +259,7 @@ func (m *Manager) recordSession(ctx context.Context, cameraID, rawURL string) er
 			if completed, closeErr := recorder.Close(); closeErr == nil && completed != nil {
 				m.noteSegment(cameraID, completed)
 			}
+			m.updateStatus(cameraID, func(s *CameraStatus) { s.ActiveSegment = nil })
 			if ctx.Err() != nil { return ctx.Err() }
 			return err
 		}
@@ -268,8 +285,11 @@ func (m *Manager) recordSession(ctx context.Context, cameraID, rawURL string) er
 		completed, err := recorder.Write(*au)
 		if err != nil {
 			_, _ = recorder.Close()
+			m.updateStatus(cameraID, func(s *CameraStatus) { s.ActiveSegment = nil })
 			return err
 		}
+		active := recorder.Current()
+		m.updateStatus(cameraID, func(s *CameraStatus) { s.ActiveSegment = active })
 		if completed != nil { m.noteSegment(cameraID, completed) }
 	}
 }
@@ -299,4 +319,3 @@ func (m *Manager) updateStatus(cameraID string, mutate func(*CameraStatus)) {
 	m.statuses[cameraID] = status
 }
 
-var _ = errors.Is
