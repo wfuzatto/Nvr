@@ -20,6 +20,11 @@ type Camera struct {
 	RTSPURLRedacted     string    `json:"rtsp_url_redacted"`
 	SnapshotURLCipher   string    `json:"snapshot_url_cipher,omitempty"`
 	SnapshotURLRedacted string    `json:"snapshot_url_redacted,omitempty"`
+	ONVIFURLCipher      string    `json:"onvif_url_cipher,omitempty"`
+	ONVIFURLRedacted    string    `json:"onvif_url_redacted,omitempty"`
+	ONVIFProfileToken   string    `json:"onvif_profile_token,omitempty"`
+	ONVIFMediaVersion   int       `json:"onvif_media_version,omitempty"`
+	ONVIFPTZ            bool      `json:"onvif_ptz,omitempty"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
 }
@@ -35,6 +40,10 @@ type CameraPublic struct {
 	Enabled             bool      `json:"enabled"`
 	RTSPURLRedacted     string    `json:"rtsp_url"`
 	SnapshotURLRedacted string    `json:"snapshot_url,omitempty"`
+	ONVIFURLRedacted    string    `json:"onvif_url,omitempty"`
+	ONVIFProfileToken   string    `json:"onvif_profile_token,omitempty"`
+	ONVIFMediaVersion   int       `json:"onvif_media_version,omitempty"`
+	ONVIFPTZ            bool      `json:"onvif_ptz,omitempty"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
 }
@@ -45,6 +54,10 @@ func (c Camera) Public() CameraPublic {
 		City: c.City, Site: c.Site, Latitude: c.Latitude, Longitude: c.Longitude,
 		Enabled: c.Enabled, RTSPURLRedacted: c.RTSPURLRedacted,
 		SnapshotURLRedacted: c.SnapshotURLRedacted,
+		ONVIFURLRedacted: c.ONVIFURLRedacted,
+		ONVIFProfileToken: c.ONVIFProfileToken,
+		ONVIFMediaVersion: c.ONVIFMediaVersion,
+		ONVIFPTZ: c.ONVIFPTZ,
 		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
 	}
 }
