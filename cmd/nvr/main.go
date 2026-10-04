@@ -53,6 +53,8 @@ func main() {
 	}
 	eventStore, err := store.OpenFileEventStore(cfg.EventDBFile)
 	if err != nil { log.Fatalf("event store: %v", err) }
+	hotlistStore, err := store.OpenFileHotlistStore(cfg.HotlistFile)
+	if err != nil { log.Fatalf("hotlist store: %v", err) }
 	authManager, err := security.OpenAuthManager(cfg.UsersFile, adminToken)
 	if err != nil {
 		log.Fatalf("auth manager: %v", err)
@@ -91,7 +93,7 @@ func main() {
 		SecretBox: box, Auth: authManager, Audit: auditLog, Evidence: evidenceManager, Cameras: cameraStore, Media: mediaManager, Live: liveManager, WebRTC: webRTCManager,
 	})
 	httpapi.AttachPluginRoutes(api,httpapi.PluginDependencies{
-		Token:pluginToken,Events:eventStore,EvidenceDir:cfg.PluginEvidenceDir,
+		Token:pluginToken,Events:eventStore,EvidenceDir:cfg.PluginEvidenceDir,Hotlist:hotlistStore,
 	})
 
 	server := &http.Server{
