@@ -142,7 +142,7 @@ func (m *tsMuxer) writePES(es []byte,pts uint64) error {
 		packet[0]=0x47
 		packet[1]=byte(pidVideo>>8)&0x1f
 		if first { packet[1]|=0x40 }
-		packet[2]=byte(pidVideo)
+		packet[2]=byte(pidVideo&0xff)
 		cc:=m.cc[pidVideo]&0x0f
 		m.cc[pidVideo]=(m.cc[pidVideo]+1)&0x0f
 
