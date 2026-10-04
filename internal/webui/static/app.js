@@ -122,6 +122,162 @@ async function showSnapshot(id) {
   }
 }
 
+function destroyPlayback() {
+  if (state.hls) {
+    state.hls.destroy();
+    state.hls = null;
+  }
+  const video = byId("playerVideo");
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+}
+
+async function showPlayback(id) {
+  const camera = state.cameras[id];
+  if (!camera) return;
+  state.playerCamera = id;
+  byId("playerTitle").textContent = camera.name;
+  byId("playerStatus").textContent = "Preparando gravações...";
+  byId("ptzPanel").hidden = !camera.onvif_ptz;
+  byId("playerDialog").showModal();
+  destroyPlayback();
+
+  try {
+    const timeline = await api("/api/v1/cameras/" + id + "/timeline?limit=20");
+    const playable = (timeline.items || []).some(function (item) { return !!item.frames_path; });
+    if (!playable) {
+      byId("playerStatus").textContent = "Ainda não há segmentos novos com índice de playback.";
+      return;
+    }
+
+    const session = await api("/api/v1/cameras/" + id + "/playback/session", {
+      method: "POST",
+      body: JSON.stringify({limit: 120, ttl_seconds: 900})
+    });
+    const video = byId("playerVideo");
+    const playlist = session.playlist_url;
+
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = playlist;
+      byId("playerStatus").textContent = "HLS nativo";
+      video.play().catch(function () {});
+      return;
+    }
+
+    if (window.Hls && window.Hls.isSupported()) {
+      state.hls = new window.Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 60
+      });
+      state.hls.loadSource(playlist);
+      state.hls.attachMedia(video);
+      state.hls.on(window.Hls.Events.MANIFEST_PARSED, function () {
+        byId("playerStatus").textContent = "Playback HLS local";
+        video.play().catch(function () {});
+      });
+      state.hls.on(window.Hls.Events.ERROR, function (_event, data) {
+        if (data && data.fatal) {
+          byId("playerStatus").textContent = "Falha no playback: " + (data.details || data.type || "erro HLS");
+        }
+      });
+      return;
+    }
+
+    byId("playerStatus").textContent = "Este navegador não possui HLS/MSE compatível.";
+  } catch (err) {
+    byId("playerStatus").textContent = err.message;
+  }
+}
+
+function renderONVIFDevices(items) {
+  const target = byId("onvifDevices");
+  if (!items || !items.length) {
+    target.innerHTML = '<div class="empty compact">Nenhuma câmera ONVIF respondeu ao discovery.</div>';
+    return;
+  }
+  target.innerHTML = items.map(function (device) {
+    const xaddr = (device.xaddrs || [])[0] || "";
+    const scopeName = (device.scopes || []).find(function (s) { return s.indexOf("/name/") >= 0; }) || "";
+    const name = scopeName ? decodeURIComponent(scopeName.split("/name/").pop()) : xaddr;
+    return '<button type="button" class="device-card" data-xaddr="' + escapeHTML(xaddr) + '">' +
+      '<strong>' + escapeHTML(name || "Câmera ONVIF") + '</strong>' +
+      '<span>' + escapeHTML(xaddr) + '</span>' +
+      '<small>' + escapeHTML(device.from || "") + '</small></button>';
+  }).join("");
+}
+
+async function inspectONVIF() {
+  const form = new FormData(byId("onvifForm"));
+  const endpoint = String(form.get("endpoint") || "").trim();
+  if (!endpoint) {
+    byId("onvifDeviceInfo").textContent = "Informe ou descubra um endpoint.";
+    return;
+  }
+  byId("onvifDeviceInfo").textContent = "Consultando...";
+  byId("addOnvifCamera").disabled = true;
+  try {
+    const result = await api("/api/v1/onvif/inspect", {
+      method: "POST",
+      body: JSON.stringify({
+        endpoint: endpoint,
+        username: String(form.get("username") || ""),
+        password: String(form.get("password") || "")
+      })
+    });
+    state.onvifProfiles = result.profiles || [];
+    const select = byId("onvifProfile");
+    select.innerHTML = state.onvifProfiles.map(function (profile, index) {
+      const title = (profile.name || ("Perfil " + (index + 1))) +
+        " · " + (profile.encoding || "?") +
+        (profile.width ? (" " + profile.width + "×" + profile.height) : "") +
+        (profile.frame_rate_limit ? (" @" + profile.frame_rate_limit + "fps") : "") +
+        (profile.ptz ? " · PTZ" : "");
+      return '<option value="' + escapeHTML(profile.token) + '" data-version="' + profile.media_version + '">' + escapeHTML(title) + '</option>';
+    }).join("");
+    select.disabled = state.onvifProfiles.length === 0;
+    byId("addOnvifCamera").disabled = state.onvifProfiles.length === 0;
+
+    const device = result.device || {};
+    const summary = [device.manufacturer, device.model, device.firmware_version].filter(Boolean).join(" · ");
+    byId("onvifDeviceInfo").textContent = summary || (state.onvifProfiles.length + " perfil(is)");
+    const nameInput = byId("onvifForm").querySelector('input[name="name"]');
+    if (!nameInput.value && (device.model || device.manufacturer)) {
+      nameInput.value = [device.manufacturer, device.model].filter(Boolean).join(" ");
+    }
+  } catch (err) {
+    byId("onvifDeviceInfo").textContent = err.message;
+  }
+}
+
+async function ptzAction(action) {
+  const id = state.playerCamera;
+  if (!id) return;
+  if (action === "stop") {
+    try { await api("/api/v1/cameras/" + id + "/ptz/stop", {method:"POST", body:"{}"}); } catch (_) {}
+    return;
+  }
+  const moves = {
+    up: {pan:0, tilt:0.6, zoom:0},
+    down: {pan:0, tilt:-0.6, zoom:0},
+    left: {pan:-0.6, tilt:0, zoom:0},
+    right: {pan:0.6, tilt:0, zoom:0},
+    zoomin: {pan:0, tilt:0, zoom:0.6},
+    zoomout: {pan:0, tilt:0, zoom:-0.6}
+  };
+  const move = moves[action];
+  if (!move) return;
+  try {
+    await api("/api/v1/cameras/" + id + "/ptz/move", {
+      method:"POST",
+      body:JSON.stringify(Object.assign({timeout_ms:650}, move))
+    });
+  } catch (err) {
+    byId("playerStatus").textContent = "PTZ: " + err.message;
+  }
+}
+
 byId("authBtn").onclick = function () { byId("tokenDialog").showModal(); };
 byId("addBtn").onclick = function () { (state.token ? byId("cameraDialog") : byId("tokenDialog")).showModal(); };
 byId("closeDialog").onclick = byId("cancelDialog").onclick = function () { byId("cameraDialog").close(); };
