@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wfuzatto/Nvr/internal/audit"
 	"github.com/wfuzatto/Nvr/internal/config"
 	"github.com/wfuzatto/Nvr/internal/live"
 	"github.com/wfuzatto/Nvr/internal/media"
@@ -31,6 +31,8 @@ type Dependencies struct {
 	Version string
 	AdminToken string
 	SecretBox *security.SecretBox
+	Auth *security.AuthManager
+	Audit *audit.Log
 	Cameras store.CameraStore
 	Media *media.Manager
 	Live *live.Manager
@@ -385,24 +387,6 @@ func validateCameraInput(in cameraInput, requireRTSP bool) error {
 	if in.Latitude != nil && (*in.Latitude < -90 || *in.Latitude > 90) { return errors.New("latitude must be between -90 and 90") }
 	if in.Longitude != nil && (*in.Longitude < -180 || *in.Longitude > 180) { return errors.New("longitude must be between -180 and 180") }
 	return nil
-}
-
-func (s *Server) auth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		auth := r.Header.Get("Authorization")
-		if !strings.HasPrefix(auth, "Bearer ") {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			writeError(w, http.StatusUnauthorized, "invalid or missing administrator token")
-			return
-		}
-		token := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
-		if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(s.deps.AdminToken)) != 1 {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			writeError(w, http.StatusUnauthorized, "invalid or missing administrator token")
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 func decodeJSON(r *http.Request, dst any) error {
