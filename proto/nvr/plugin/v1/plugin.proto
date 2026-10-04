@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package nvr.plugin.v1;
+
+option go_package = "github.com/wfuzatto/Nvr/gen/plugin/v1;pluginv1";
+
+message PluginIdentity {
+  string id = 1;
+  string version = 2;
+  string protocol_version = 3;
+  string instance_id = 4;
+  string node_id = 5;
+}
+
+message FrameSubscription {
+  repeated string camera_ids = 1;
+  uint32 max_fps = 2;
+  uint32 max_width = 3;
+  uint32 max_height = 4;
+  string pixel_format = 5;
+  string transport = 6;
+}
+
+message FrameMeta {
+  string frame_id = 1;
+  string camera_id = 2;
+  int64 observed_at_unix_ms = 3;
+  uint32 width = 4;
+  uint32 height = 5;
+  string pixel_format = 6;
+  bool keyframe = 7;
+}
+
+message EventEnvelope {
+  string event_id = 1;
+  string event_type = 2;
+  string schema_version = 3;
+  string tenant_id = 4;
+  string city_id = 5;
+  string site_id = 6;
+  string node_id = 7;
+  string camera_id = 8;
+  int64 observed_at_unix_ms = 9;
+  int64 received_at_unix_ms = 10;
+  string plugin_id = 11;
+  string plugin_version = 12;
+  double confidence = 13;
+  string snapshot_ref = 14;
+  string clip_ref = 15;
+  bytes attributes_json = 16;
+  string dedupe_key = 17;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    HEALTHY = 1;
+    DEGRADED = 2;
+    FAILED = 3;
+  }
+
+  Status status = 1;
+  string message = 2;
+}
+
+service PluginRuntime {
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
