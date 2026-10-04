@@ -15,6 +15,7 @@ func TestRetentionKeepsProtectedSegment(t *testing.T) {
 	old := filepath.Join(dir, "old.h264")
 	protected := filepath.Join(dir, "protected.h264")
 	if err := os.WriteFile(old, make([]byte, 10), 0o640); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(old+".frames.jsonl", []byte("{}\n"), 0o640); err != nil { t.Fatal(err) }
 	if err := os.WriteFile(protected, make([]byte, 10), 0o640); err != nil { t.Fatal(err) }
 	if err := os.WriteFile(protected+".protected", []byte("yes"), 0o640); err != nil { t.Fatal(err) }
 	oldTime := time.Now().Add(-72*time.Hour)
@@ -24,5 +25,6 @@ func TestRetentionKeepsProtectedSegment(t *testing.T) {
 	report, err := RunRetention(root, 1, 0)
 	if err != nil { t.Fatal(err) }
 	if report.DeletedFiles != 1 { t.Fatalf("deleted=%d", report.DeletedFiles) }
+	if _, err := os.Stat(old+".frames.jsonl"); !os.IsNotExist(err) { t.Fatal("frame sidecar was not removed") }
 	if _, err := os.Stat(protected); err != nil { t.Fatal("protected segment was deleted") }
 }
