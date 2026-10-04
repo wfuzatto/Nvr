@@ -42,10 +42,14 @@ func (s *SecretBox) Decrypt(encoded string) (string, error) {
 	return string(clear), nil
 }
 
-func LoadOrCreateAdminToken(path string) (string, bool, error) {
+func LoadOrCreateToken(path string) (string, bool, error) {
 	raw, created, err := loadOrCreateRandom(path, 32)
 	if err != nil { return "", false, err }
 	return base64.RawURLEncoding.EncodeToString(raw), created, nil
+}
+
+func LoadOrCreateAdminToken(path string) (string, bool, error) {
+	return LoadOrCreateToken(path)
 }
 
 func loadOrCreateRandom(path string, size int) ([]byte, bool, error) {
@@ -60,8 +64,8 @@ func loadOrCreateRandom(path string, size int) ([]byte, bool, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil { return nil, false, err }
 	raw := make([]byte, size)
 	if _, err := io.ReadFull(rand.Reader, raw); err != nil { return nil, false, err }
-	content := base64.RawStdEncoding.EncodeToString(raw) + "\n"
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil { return nil, false, err }
+	content := append([]byte(base64.RawStdEncoding.EncodeToString(raw)), byte(10))
+	if err := os.WriteFile(path, content, 0o600); err != nil { return nil, false, err }
 	if err := os.Chmod(path, 0o600); err != nil { return nil, false, err }
 	return raw, true, nil
 }

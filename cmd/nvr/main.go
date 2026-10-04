@@ -26,40 +26,32 @@ const version = "0.5.0-dev"
 
 func main() {
 	cfg, err := config.Load()
-	if err != nil {
-		log.Fatalf("config: %v", err)
-	}
+	if err != nil { log.Fatalf("config: %v", err) }
 
 	box, err := security.LoadOrCreateSecretBox(cfg.MasterKeyFile)
-	if err != nil {
-		log.Fatalf("master key: %v", err)
-	}
+	if err != nil { log.Fatalf("master key: %v", err) }
 
 	adminToken, created, err := security.LoadOrCreateAdminToken(cfg.AdminTokenFile)
-	if err != nil {
-		log.Fatalf("admin token: %v", err)
-	}
+	if err != nil { log.Fatalf("admin token: %v", err) }
 	if created {
 		log.Printf("IMPORTANT: first-run administrator token: %s", adminToken)
 		log.Printf("The token is also stored at %s with restrictive permissions.", cfg.AdminTokenFile)
 	}
 
+	pluginToken, pluginCreated, err := security.LoadOrCreateToken(cfg.PluginTokenFile)
+	if err != nil { log.Fatalf("plugin token: %v", err) }
+	if pluginCreated { log.Printf("plugin runtime token created at %s", cfg.PluginTokenFile) }
+
 	cameraStore, err := store.OpenFileCameraStore(cfg.CameraDBFile)
-	if err != nil {
-		log.Fatalf("camera store: %v", err)
-	}
+	if err != nil { log.Fatalf("camera store: %v", err) }
+	eventStore, err := store.OpenFileEventStore(cfg.EventDBFile)
+	if err != nil { log.Fatalf("event store: %v", err) }
 	authManager, err := security.OpenAuthManager(cfg.UsersFile, adminToken)
-	if err != nil {
-		log.Fatalf("auth manager: %v", err)
-	}
+	if err != nil { log.Fatalf("auth manager: %v", err) }
 	auditLog, err := audit.Open(cfg.AuditFile)
-	if err != nil {
-		log.Fatalf("audit log: %v", err)
-	}
+	if err != nil { log.Fatalf("audit log: %v", err) }
 	evidenceManager, err := evidence.NewManager(cfg.StorageDir, cfg.ExportsDir, cameraStore)
-	if err != nil {
-		log.Fatalf("evidence manager: %v", err)
-	}
+	if err != nil { log.Fatalf("evidence manager: %v", err) }
 
 	appCtx, appCancel := context.WithCancel(context.Background())
 	defer appCancel()
@@ -83,7 +75,11 @@ func main() {
 
 	api := httpapi.New(httpapi.Dependencies{
 		Config: cfg, Version: version, AdminToken: adminToken,
-		SecretBox: box, Auth: authManager, Audit: auditLog, Evidence: evidenceManager, Cameras: cameraStore, Media: mediaManager, Live: liveManager, WebRTC: webRTCManager,
+		SecretBox: box, Auth: authManager, Audit: auditLog, Evidence: evidenceManager,
+		Cameras: cameraStore, Media: mediaManager, Live: liveManager, WebRTC: webRTCManager,
+	})
+	httpapi.AttachPluginRoutes(api, httpapi.PluginDependencies{
+		Token: pluginToken, Events: eventStore, EvidenceDir: cfg.EvidenceDir,
 	})
 
 	server := &http.Server{
@@ -98,6 +94,7 @@ func main() {
 	go func() {
 		log.Printf("NVR %s listening on http://%s", version, cfg.ListenAddress)
 		log.Printf("media engine enabled: segment=%s retention=%dd max_bytes=%d", cfg.SegmentDuration, cfg.RetentionDays, cfg.StorageMaxBytes)
+		log.Printf("plugin runtime enabled: event_store=%s evidence_dir=%s", cfg.EventDBFile, cfg.EvidenceDir)
 		if webRTCManager != nil {
 			log.Printf("WebRTC enabled: UDP %d (ICE mux) public_ip_configured=%t", cfg.WebRTCUDPPort, cfg.WebRTCPublicIP != "")
 		} else {
@@ -120,7 +117,5 @@ func main() {
 	appCancel()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := server.Shutdown(ctx); err != nil {
-		log.Printf("shutdown: %v", err)
-	}
+	if err := server.Shutdown(ctx); err != nil { log.Printf("shutdown: %v", err) }
 }
