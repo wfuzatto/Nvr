@@ -1,0 +1,24 @@
+[Unit]
+Description=NVR Control Center
+After=network.target
+
+[Service]
+Type=simple
+User=nvr
+Group=nvr
+WorkingDirectory=/opt/nvr
+Environment=NVR_DATA_DIR=/var/lib/nvr
+Environment=NVR_RUNTIME_DIR=/opt/nvr/runtime
+Environment=NVR_STORAGE_DIR=/var/lib/nvr/recordings
+Environment=NVR_LISTEN=0.0.0.0:8080
+ExecStart=/opt/nvr/nvr
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/nvr
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
