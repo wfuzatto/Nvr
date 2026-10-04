@@ -18,6 +18,11 @@ Environment=NVR_RETENTION_INTERVAL_SECONDS=300
 Environment=NVR_RTSP_READ_TIMEOUT_SECONDS=15
 Environment=NVR_SNAPSHOT_TIMEOUT_SECONDS=5
 Environment=NVR_PRE_EVENT_SECONDS=30
+Environment=NVR_WEBRTC_ENABLED=true
+Environment=NVR_WEBRTC_UDP_MIN=50000
+Environment=NVR_WEBRTC_UDP_MAX=50100
+# For routed/NAT deployments, optionally set:
+# Environment=NVR_WEBRTC_PUBLIC_IP=203.0.113.10
 ExecStart=/opt/nvr/nvr
 Restart=always
 RestartSec=3
