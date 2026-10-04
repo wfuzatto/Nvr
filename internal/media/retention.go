@@ -107,7 +107,7 @@ func removeEmptyDirs(root string) {
 
 func deleteRecordingFile(path string) error {
 	if err:=os.Remove(path); err!=nil { return err }
-	_ = os.Remove(path+".frames.jsonl")
+	_ = os.Remove(path+".frames.idx")
 	_ = os.Remove(path+".protected")
 	return nil
 }
