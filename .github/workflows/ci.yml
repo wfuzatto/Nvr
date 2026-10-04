@@ -17,7 +17,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: nvr-build-${{ github.ref }}
+  group: nvr-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
