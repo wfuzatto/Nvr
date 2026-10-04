@@ -474,9 +474,15 @@ async function renderMosaic(size) {
 }
 
 async function loadSystem() {
-  const data = await api("/api/v1/system/status");
+  const results = await Promise.all([
+    api("/api/v1/system/status"),
+    api("/api/v1/plugins/plate-ocr/status").catch(function(err){return {state:"offline",error:err.message};})
+  ]);
+  const data = results[0];
+  const plate = results[1] || {};
   byId("systemCards").innerHTML = [
     ["Uptime",Math.floor(data.uptime_seconds/3600)+" h"],
+    ["Plate OCR",plate.status || plate.state || "offline"],
     ["RAM Go",bytesHuman(data.memory_alloc_bytes)],
     ["Disco livre",bytesHuman(data.disk_free_bytes)],
     ["Uso do disco",Number(data.disk_used_percent||0).toFixed(1)+"%"],
@@ -485,7 +491,7 @@ async function loadSystem() {
     ["Reconnects",data.reconnects],
     ["Goroutines",data.goroutines]
   ].map(function(x){return '<article><span>'+escapeHTML(x[0])+'</span><strong>'+escapeHTML(x[1])+'</strong></article>';}).join("");
-  byId("systemRaw").textContent = JSON.stringify(data,null,2);
+  byId("systemRaw").textContent = JSON.stringify({nvr:data,plate_ocr:plate},null,2);
 }
 
 async function showSystem() {
