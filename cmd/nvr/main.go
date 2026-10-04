@@ -18,7 +18,7 @@ import (
 	"github.com/wfuzatto/Nvr/internal/store"
 )
 
-const version = "0.2.0-dev"
+const version = "0.3.0-dev"
 
 func main() {
 	cfg, err := config.Load()
