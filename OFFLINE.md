@@ -50,7 +50,11 @@ Docker pode ser um formato opcional de empacotamento, mas não é requisito do c
 
 ## Media engine e banco
 
-O projeto não vai fingir que FFmpeg, GStreamer ou PostgreSQL estão disponíveis se seus binários ainda não estiverem vendorizados. Nesta etapa o control core usa store local atômica e a camada de mídia será adicionada com runtime totalmente offline.
+O Media Engine v1 já funciona sem FFmpeg ou GStreamer obrigatórios: RTSP/RTP, depacketização H.264/H.265, segmentação, timeline e retenção usam apenas o binário do NVR.
+
+FFmpeg/GStreamer poderão entrar futuramente para remux, decode, playback e aceleração de hardware. Quando isso acontecer, seus artefatos serão vendorizados no pacote offline antes de se tornarem requisito.
+
+O banco principal desta fase continua local/atômico. PostgreSQL só se tornará requisito quando o pacote offline completo do banco estiver incluído e validado.
 
 ## Release
 
