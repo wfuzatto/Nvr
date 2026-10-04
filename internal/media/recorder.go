@@ -20,7 +20,9 @@ type Segment struct {
 	Start      time.Time `json:"start"`
 	End        time.Time `json:"end"`
 	Codec      string    `json:"codec"`
+	ClockRate  int       `json:"clock_rate,omitempty"`
 	Path       string    `json:"path"`
+	FramesPath string    `json:"frames_path,omitempty"`
 	Bytes      int64     `json:"bytes"`
 	Keyframes  int       `json:"keyframes"`
 	SHA256     string    `json:"sha256"`
@@ -28,32 +30,45 @@ type Segment struct {
 	Partial    bool      `json:"partial,omitempty"`
 }
 
+type FrameIndexEntry struct {
+	Offset    int64     `json:"offset"`
+	Length    int       `json:"length"`
+	Timestamp uint32    `json:"rtp_timestamp"`
+	Keyframe  bool      `json:"keyframe"`
+	Received  time.Time `json:"received_at"`
+}
+
 type Recorder struct {
 	root            string
 	cameraID        string
 	codec           string
+	clockRate       int
 	segmentDuration time.Duration
 	bootstrap       [][]byte
 
-	file       *os.File
-	hasher     hash.Hash
-	tmpPath    string
-	finalPath  string
-	current    Segment
+	file            *os.File
+	frameFile       *os.File
+	hasher          hash.Hash
+	tmpPath         string
+	finalPath       string
+	frameTmpPath    string
+	frameFinalPath  string
+	current         Segment
 }
 
-func NewRecorder(root, cameraID, codec string, segmentDuration time.Duration, bootstrap [][]byte) (*Recorder, error) {
+func NewRecorder(root, cameraID, codec string, clockRate int, segmentDuration time.Duration, bootstrap [][]byte) (*Recorder, error) {
 	if cameraID == "" { return nil, fmt.Errorf("camera ID is required") }
 	if strings.ContainsAny(cameraID, "/\\") { return nil, fmt.Errorf("invalid camera ID") }
 	codec = strings.ToUpper(codec)
 	if codec == "HEVC" { codec = "H265" }
 	if codec != "H264" && codec != "H265" { return nil, fmt.Errorf("unsupported codec %s", codec) }
+	if clockRate <= 0 { clockRate = 90000 }
 	if segmentDuration <= 0 { return nil, fmt.Errorf("segment duration must be positive") }
 
 	copied := make([][]byte, 0, len(bootstrap))
 	for _, nal := range bootstrap { copied = append(copied, append([]byte(nil), nal...)) }
 	return &Recorder{
-		root: root, cameraID: cameraID, codec: codec,
+		root: root, cameraID: cameraID, codec: codec, clockRate: clockRate,
 		segmentDuration: segmentDuration, bootstrap: copied,
 	}, nil
 }
@@ -74,20 +89,28 @@ func (r *Recorder) Write(au rtsp.AccessUnit) (*Segment, error) {
 		if err := r.openSegment(when); err != nil { return nil, err }
 	}
 
-	if au.Keyframe { r.current.Keyframes++ }
+	offset := r.current.Bytes
 	n, err := r.writeBytes(au.Data)
-	if err != nil { return completed, err }
+	if err != nil { _ = r.abortCurrent(); return completed, err }
+	if n != len(au.Data) { _ = r.abortCurrent(); return completed, fmt.Errorf("short video write: %d/%d", n, len(au.Data)) }
+
+	entry := FrameIndexEntry{
+		Offset:offset, Length:n, Timestamp:au.Timestamp,
+		Keyframe:au.Keyframe, Received:when.UTC(),
+	}
+	if err := r.writeFrameIndex(entry); err != nil { _ = r.abortCurrent(); return completed, err }
+
 	r.current.Bytes += int64(n)
-	r.current.End = when
+	if au.Keyframe { r.current.Keyframes++ }
+	r.current.End = when.UTC()
 	return completed, nil
 }
-
 
 func (r *Recorder) Current() *Segment {
 	if r.file == nil { return nil }
 	current := r.current
-	relative, err := filepath.Rel(r.root, r.tmpPath)
-	if err == nil { current.Path = filepath.ToSlash(relative) }
+	if relative, err := filepath.Rel(r.root, r.tmpPath); err == nil { current.Path = filepath.ToSlash(relative) }
+	if relative, err := filepath.Rel(r.root, r.frameTmpPath); err == nil { current.FramesPath = filepath.ToSlash(relative) }
 	current.Partial = true
 	current.SHA256 = ""
 	return &current
@@ -110,83 +133,115 @@ func (r *Recorder) openSegment(start time.Time) error {
 	name := fmt.Sprintf("%s_%d%s", start.UTC().Format("15-04-05.000"), start.UnixNano(), ext)
 	finalPath := filepath.Join(dir, name)
 	tmpPath := finalPath + ".partial"
+	frameFinalPath := finalPath + ".frames.jsonl"
+	frameTmpPath := frameFinalPath + ".partial"
 
 	f, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o640)
 	if err != nil { return err }
+	ff, err := os.OpenFile(frameTmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o640)
+	if err != nil { _ = f.Close(); _ = os.Remove(tmpPath); return err }
+
 	r.file = f
+	r.frameFile = ff
 	r.hasher = sha256.New()
 	r.tmpPath = tmpPath
 	r.finalPath = finalPath
+	r.frameTmpPath = frameTmpPath
+	r.frameFinalPath = frameFinalPath
+
 	relative, _ := filepath.Rel(r.root, finalPath)
+	frameRelative, _ := filepath.Rel(r.root, frameFinalPath)
 	r.current = Segment{
 		ID: fmt.Sprintf("%s-%d", r.cameraID, start.UnixNano()),
-		CameraID: r.cameraID, Start: start.UTC(), End: start.UTC(),
-		Codec: r.codec, Path: filepath.ToSlash(relative),
+		CameraID:r.cameraID, Start:start.UTC(), End:start.UTC(),
+		Codec:r.codec, ClockRate:r.clockRate,
+		Path:filepath.ToSlash(relative), FramesPath:filepath.ToSlash(frameRelative),
 	}
 
 	for _, nal := range r.bootstrap {
-		if len(nal) == 0 { continue }
-		if _, err := r.writeBytes([]byte{0,0,0,1}); err != nil { _ = r.abortCurrent(); return err }
-		r.current.Bytes += 4
-		n, err := r.writeBytes(nal)
-		if err != nil { _ = r.abortCurrent(); return err }
-		r.current.Bytes += int64(n)
+		if len(nal)==0 { continue }
+		n,err:=r.writeBytes([]byte{0,0,0,1})
+		if err!=nil { _=r.abortCurrent(); return err }
+		r.current.Bytes+=int64(n)
+		n,err=r.writeBytes(nal)
+		if err!=nil { _=r.abortCurrent(); return err }
+		r.current.Bytes+=int64(n)
 	}
 	return nil
 }
 
 func (r *Recorder) closeCurrent(end time.Time) (*Segment, error) {
 	if r.file == nil { return nil, nil }
-	r.current.End = end.UTC()
-	if err := r.file.Sync(); err != nil { _ = r.abortCurrent(); return nil, err }
-	if err := r.file.Close(); err != nil {
-		r.file = nil
-		return nil, err
-	}
-	r.file = nil
-	r.current.SHA256 = hex.EncodeToString(r.hasher.Sum(nil))
-	if err := os.Rename(r.tmpPath, r.finalPath); err != nil { return nil, err }
-	if err := appendIndex(r.root, r.current); err != nil { return nil, err }
+	r.current.End=end.UTC()
 
-	completed := r.current
-	r.current = Segment{}
-	r.tmpPath, r.finalPath = "", ""
-	r.hasher = nil
-	return &completed, nil
+	if err:=r.file.Sync(); err!=nil { _=r.abortCurrent(); return nil,err }
+	if err:=r.frameFile.Sync(); err!=nil { _=r.abortCurrent(); return nil,err }
+	if err:=r.file.Close(); err!=nil { r.file=nil; _=r.abortCurrent(); return nil,err }
+	r.file=nil
+	if err:=r.frameFile.Close(); err!=nil { r.frameFile=nil; _=r.abortCurrent(); return nil,err }
+	r.frameFile=nil
+
+	r.current.SHA256=hex.EncodeToString(r.hasher.Sum(nil))
+	if err:=os.Rename(r.tmpPath,r.finalPath); err!=nil { return nil,err }
+	if err:=os.Rename(r.frameTmpPath,r.frameFinalPath); err!=nil {
+		_ = os.Remove(r.finalPath)
+		return nil,err
+	}
+	if err:=appendIndex(r.root,r.current); err!=nil { return nil,err }
+
+	completed:=r.current
+	r.reset()
+	return &completed,nil
 }
 
-func (r *Recorder) writeBytes(payload []byte) (int, error) {
-	if len(payload) == 0 { return 0, nil }
-	n, err := r.file.Write(payload)
-	if n > 0 { _, _ = r.hasher.Write(payload[:n]) }
-	return n, err
+func (r *Recorder) writeBytes(payload []byte) (int,error) {
+	if len(payload)==0 { return 0,nil }
+	n,err:=r.file.Write(payload)
+	if n>0 { _,_=r.hasher.Write(payload[:n]) }
+	return n,err
+}
+
+func (r *Recorder) writeFrameIndex(entry FrameIndexEntry) error {
+	payload,err:=json.Marshal(entry)
+	if err!=nil { return err }
+	if _,err:=r.frameFile.Write(append(payload,'\n')); err!=nil { return err }
+	return nil
 }
 
 func (r *Recorder) abortCurrent() error {
 	var first error
-	if r.file != nil {
-		if err := r.file.Close(); err != nil { first = err }
+	if r.file!=nil {
+		if err:=r.file.Close(); err!=nil { first=err }
 	}
-	r.file = nil
-	if r.tmpPath != "" {
-		if err := os.Remove(r.tmpPath); err != nil && !os.IsNotExist(err) && first == nil { first = err }
+	if r.frameFile!=nil {
+		if err:=r.frameFile.Close(); err!=nil && first==nil { first=err }
 	}
-	r.current = Segment{}
-	r.tmpPath, r.finalPath = "", ""
-	r.hasher = nil
+	for _,path:=range []string{r.tmpPath,r.frameTmpPath} {
+		if path=="" { continue }
+		if err:=os.Remove(path); err!=nil && !os.IsNotExist(err) && first==nil { first=err }
+	}
+	r.reset()
 	return first
 }
 
-func appendIndex(root string, segment Segment) error {
-	absolute := filepath.Join(root, filepath.FromSlash(segment.Path))
-	dir := filepath.Dir(absolute)
-	indexPath := filepath.Join(dir, "index.jsonl")
-	f, err := os.OpenFile(indexPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o640)
-	if err != nil { return err }
-	defer f.Close()
+func (r *Recorder) reset() {
+	r.file=nil
+	r.frameFile=nil
+	r.current=Segment{}
+	r.tmpPath,r.finalPath="",""
+	r.frameTmpPath,r.frameFinalPath="",""
+	r.hasher=nil
+}
 
-	payload, err := json.Marshal(segment)
-	if err != nil { return err }
-	if _, err := f.Write(append(payload, '\n')); err != nil { return err }
+func appendIndex(root string, segment Segment) error {
+	absolute:=filepath.Join(root,filepath.FromSlash(segment.Path))
+	dir:=filepath.Dir(absolute)
+	indexPath:=filepath.Join(dir,"index.jsonl")
+	f,err:=os.OpenFile(indexPath,os.O_CREATE|os.O_APPEND|os.O_WRONLY,0o640)
+	if err!=nil { return err }
+	defer f.Close()
+	payload,err:=json.Marshal(segment)
+	if err!=nil { return err }
+	if _,err:=f.Write(append(payload,'\n')); err!=nil { return err }
 	return f.Sync()
 }
