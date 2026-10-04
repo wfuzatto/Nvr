@@ -103,8 +103,27 @@ func (c *Client) Services(ctx context.Context) ([]Service, error) {
 	return services, nil
 }
 
+func (c *Client) Capabilities(ctx context.Context) ([]Service, error) {
+	body, err := c.soap(ctx, c.Endpoint, nsDevice+"/GetCapabilities", `<tds:GetCapabilities><tds:Category>All</tds:Category></tds:GetCapabilities>`)
+	if err != nil { return nil, err }
+	services, err := parseCapabilities(body)
+	if err != nil { return nil, err }
+	for _, service := range services {
+		if service.Namespace != "" && service.XAddr != "" { c.services[service.Namespace] = service.XAddr }
+	}
+	return services, nil
+}
+
+func (c *Client) loadServices(ctx context.Context) {
+	if len(c.services) > 0 && (c.services[nsMedia] != "" || c.services[nsMedia2] != "") { return }
+	_, _ = c.Services(ctx)
+	if c.services[nsMedia] == "" && c.services[nsMedia2] == "" {
+		_, _ = c.Capabilities(ctx)
+	}
+}
+
 func (c *Client) Profiles(ctx context.Context) ([]Profile, error) {
-	if len(c.services) == 0 { _, _ = c.Services(ctx) }
+	c.loadServices(ctx)
 
 	if xaddr := c.services[nsMedia2]; xaddr != "" {
 		body, err := c.soap(ctx, xaddr, nsMedia2+"/GetProfiles", `<tr2:GetProfiles/>`)
@@ -121,7 +140,7 @@ func (c *Client) Profiles(ctx context.Context) ([]Profile, error) {
 
 func (c *Client) StreamURI(ctx context.Context, profileToken string, mediaVersion int) (string, error) {
 	if strings.TrimSpace(profileToken) == "" { return "", errors.New("profile token is required") }
-	if len(c.services) == 0 { _, _ = c.Services(ctx) }
+	c.loadServices(ctx)
 	if mediaVersion == 2 && c.services[nsMedia2] != "" {
 		body := `<tr2:GetStreamUri><tr2:Protocol>RTSP</tr2:Protocol><tr2:ProfileToken>`+xmlEscape(profileToken)+`</tr2:ProfileToken></tr2:GetStreamUri>`
 		resp, err := c.soap(ctx, c.services[nsMedia2], nsMedia2+"/GetStreamUri", body)
@@ -138,7 +157,7 @@ func (c *Client) StreamURI(ctx context.Context, profileToken string, mediaVersio
 
 func (c *Client) SnapshotURI(ctx context.Context, profileToken string, mediaVersion int) (string, error) {
 	if strings.TrimSpace(profileToken) == "" { return "", errors.New("profile token is required") }
-	if len(c.services) == 0 { _, _ = c.Services(ctx) }
+	c.loadServices(ctx)
 	if mediaVersion == 2 && c.services[nsMedia2] != "" {
 		body := `<tr2:GetSnapshotUri><tr2:ProfileToken>`+xmlEscape(profileToken)+`</tr2:ProfileToken></tr2:GetSnapshotUri>`
 		resp, err := c.soap(ctx, c.services[nsMedia2], nsMedia2+"/GetSnapshotUri", body)
@@ -155,7 +174,7 @@ func (c *Client) SnapshotURI(ctx context.Context, profileToken string, mediaVers
 }
 
 func (c *Client) PTZStatus(ctx context.Context, profileToken string) (PTZStatus, error) {
-	if len(c.services) == 0 { _, _ = c.Services(ctx) }
+	c.loadServices(ctx)
 	xaddr := c.services[nsPTZ]
 	if xaddr == "" { return PTZStatus{}, errors.New("ONVIF PTZ service unavailable") }
 	body := `<tptz:GetStatus><tptz:ProfileToken>`+xmlEscape(profileToken)+`</tptz:ProfileToken></tptz:GetStatus>`
@@ -165,7 +184,7 @@ func (c *Client) PTZStatus(ctx context.Context, profileToken string) (PTZStatus,
 }
 
 func (c *Client) PTZContinuousMove(ctx context.Context, profileToken string, pan, tilt, zoom float64, timeout time.Duration) error {
-	if len(c.services) == 0 { _, _ = c.Services(ctx) }
+	c.loadServices(ctx)
 	xaddr := c.services[nsPTZ]
 	if xaddr == "" { return errors.New("ONVIF PTZ service unavailable") }
 	pan = clamp(pan); tilt = clamp(tilt); zoom = clamp(zoom)
@@ -183,7 +202,7 @@ func (c *Client) PTZContinuousMove(ctx context.Context, profileToken string, pan
 }
 
 func (c *Client) PTZStop(ctx context.Context, profileToken string, panTilt, zoom bool) error {
-	if len(c.services) == 0 { _, _ = c.Services(ctx) }
+	c.loadServices(ctx)
 	xaddr := c.services[nsPTZ]
 	if xaddr == "" { return errors.New("ONVIF PTZ service unavailable") }
 	body := `<tptz:Stop><tptz:ProfileToken>`+xmlEscape(profileToken)+`</tptz:ProfileToken><tptz:PanTilt>`+strconv.FormatBool(panTilt)+`</tptz:PanTilt><tptz:Zoom>`+strconv.FormatBool(zoom)+`</tptz:Zoom></tptz:Stop>`
@@ -282,6 +301,42 @@ func parseServices(payload []byte) ([]Service, error) {
 		}
 	}
 	return out, nil
+}
+
+func parseCapabilities(payload []byte) ([]Service, error) {
+	decoder := xml.NewDecoder(bytes.NewReader(payload))
+	var stack []string
+	var out []Service
+	seen := make(map[string]bool)
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF { break }
+		if err != nil { return nil, err }
+		switch t := token.(type) {
+		case xml.StartElement:
+			stack = append(stack, t.Name.Local)
+			if t.Name.Local != "XAddr" { continue }
+			var value string
+			if err := decoder.DecodeElement(&value, &t); err != nil { return nil, err }
+			stack = stack[:len(stack)-1]
+			value = strings.TrimSpace(value)
+			if value == "" || len(stack) == 0 { continue }
+			parent := stack[len(stack)-1]
+			namespace := ""
+			switch parent {
+			case "Media": namespace = nsMedia
+			case "Media2": namespace = nsMedia2
+			case "PTZ": namespace = nsPTZ
+			}
+			if namespace != "" && !seen[namespace+"|"+value] {
+				seen[namespace+"|"+value] = true
+				out = append(out, Service{Namespace:namespace, XAddr:value})
+			}
+		case xml.EndElement:
+			if len(stack)>0 { stack=stack[:len(stack)-1] }
+		}
+	}
+	return out,nil
 }
 
 func parseProfiles(payload []byte, mediaVersion int) ([]Profile, error) {
@@ -399,16 +454,16 @@ func parseSOAPFault(payload []byte) string {
 
 func buildHTTPAuthorization(challenges []string, username, password, method, endpoint string) (string, error) {
 	for _, challenge := range challenges {
-		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(challenge)), "basic") {
-			return "Basic "+base64.StdEncoding.EncodeToString([]byte(username+":"+password)), nil
-		}
-	}
-	for _, challenge := range challenges {
 		if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(challenge)), "digest") { continue }
 		u, _ := url.Parse(endpoint)
 		uri := "/"
 		if u != nil && u.RequestURI() != "" { uri = u.RequestURI() }
 		return digestAuthorization(challenge, username, password, method, uri)
+	}
+	for _, challenge := range challenges {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(challenge)), "basic") {
+			return "Basic "+base64.StdEncoding.EncodeToString([]byte(username+":"+password)), nil
+		}
 	}
 	return "", errors.New("unsupported ONVIF HTTP authentication challenge")
 }
