@@ -14,8 +14,11 @@ type Config struct {
 	RuntimeDir         string
 	StorageDir         string
 	CameraDBFile       string
+	EventDBFile        string
+	PluginEvidenceDir  string
 	MasterKeyFile      string
 	AdminTokenFile     string
+	PluginTokenFile    string
 	UsersFile          string
 	AuditFile          string
 	ExportsDir         string
@@ -80,8 +83,11 @@ func Load() (Config, error) {
 		RuntimeDir:         runtimeDir,
 		StorageDir:         storageDir,
 		CameraDBFile:       filepath.Join(dataDir, "cameras.json"),
+		EventDBFile:        filepath.Join(dataDir, "events", "events.jsonl"),
+		PluginEvidenceDir:  filepath.Join(storageDir, "plugin-evidence"),
 		MasterKeyFile:      filepath.Join(dataDir, "master.key"),
 		AdminTokenFile:     filepath.Join(dataDir, "admin.token"),
+		PluginTokenFile:    filepath.Join(dataDir, "plugin.token"),
 		UsersFile:          filepath.Join(dataDir, "users.json"),
 		AuditFile:          filepath.Join(dataDir, "audit.jsonl"),
 		ExportsDir:         filepath.Join(dataDir, "exports"),
@@ -97,7 +103,7 @@ func Load() (Config, error) {
 		WebRTCUDPPort:      webRTCUDPPort,
 		WebRTCPublicIP:     env("NVR_WEBRTC_PUBLIC_IP", ""),
 	}
-	for _, dir := range []string{cfg.DataDir, cfg.RuntimeDir, cfg.StorageDir, cfg.ExportsDir} {
+	for _, dir := range []string{cfg.DataDir, cfg.RuntimeDir, cfg.StorageDir, cfg.ExportsDir, filepath.Dir(cfg.EventDBFile), cfg.PluginEvidenceDir} {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return Config{}, fmt.Errorf("create %s: %w", dir, err)
 		}
