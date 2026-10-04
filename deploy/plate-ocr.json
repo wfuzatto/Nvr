@@ -1,0 +1,23 @@
+{
+  "nvr_base_url": "http://127.0.0.1:8080",
+  "plugin_token_file": "/var/lib/nvr/plugin.token",
+  "listen": "127.0.0.1:8091",
+  "poll_fps": 3,
+  "http_timeout_ms": 5000,
+  "spool_dir": "/var/lib/plate-ocr/spool",
+  "max_parallel": 8,
+  "evidence_enabled": true,
+  "camera_ids": [],
+  "cameras": {},
+  "track_ttl_ms": 1200,
+  "dedupe_ttl_ms": 5000,
+  "min_observations": 2,
+  "min_event_confidence": 0.62,
+  "max_candidates_per_read": 8,
+  "max_active_tracks_per_camera": 64,
+  "detector_threshold": 0.36,
+  "recognizer_threshold": 0.48,
+  "max_detections": 8,
+  "min_plate_width_px": 70,
+  "min_plate_height_px": 20
+}
