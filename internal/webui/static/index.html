@@ -31,7 +31,7 @@
     <section class="panel">
       <div class="panel-head">
         <div><div class="eyebrow">INVENTÁRIO</div><h2>Câmeras</h2></div>
-        <button id="addBtn">+ Nova câmera</button>
+        <div class="toolbar"><button id="discoverBtn" class="secondary">Descobrir ONVIF</button><button id="addBtn">+ RTSP manual</button></div>
       </div>
       <div id="notice"></div>
       <div class="table-wrap">
@@ -71,6 +71,7 @@
     <img id="snapshotImage" alt="Snapshot da câmera" hidden>
   </dialog>
 
+  <script src="/hls.min.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
