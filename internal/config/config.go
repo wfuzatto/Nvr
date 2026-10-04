@@ -24,6 +24,10 @@ type Config struct {
 	RTSPReadTimeout    time.Duration
 	SnapshotTimeout    time.Duration
 	PreEventWindow     time.Duration
+	WebRTCEnabled      bool
+	WebRTCPortMin      int
+	WebRTCPortMax      int
+	WebRTCPublicIP     string
 }
 
 func Load() (Config, error) {
@@ -47,6 +51,12 @@ func Load() (Config, error) {
 	if err != nil { return Config{}, err }
 	storageMaxBytes, err := envInt64("NVR_STORAGE_MAX_BYTES", 0)
 	if err != nil { return Config{}, err }
+	webRTCEnabled, err := envBool("NVR_WEBRTC_ENABLED", true)
+	if err != nil { return Config{}, err }
+	webRTCPortMin, err := envInt("NVR_WEBRTC_UDP_MIN", 50000)
+	if err != nil { return Config{}, err }
+	webRTCPortMax, err := envInt("NVR_WEBRTC_UDP_MAX", 50100)
+	if err != nil { return Config{}, err }
 
 	if segmentDuration < 5*time.Second {
 		return Config{}, fmt.Errorf("NVR_SEGMENT_SECONDS must be at least 5")
@@ -59,6 +69,9 @@ func Load() (Config, error) {
 	}
 	if storageMaxBytes < 0 {
 		return Config{}, fmt.Errorf("NVR_STORAGE_MAX_BYTES cannot be negative")
+	}
+	if webRTCPortMin < 1024 || webRTCPortMin > 65535 || webRTCPortMax < 1024 || webRTCPortMax > 65535 || webRTCPortMax < webRTCPortMin {
+		return Config{}, fmt.Errorf("NVR_WEBRTC_UDP_MIN/MAX must define a valid range between 1024 and 65535")
 	}
 
 	cfg := Config{
@@ -77,6 +90,10 @@ func Load() (Config, error) {
 		RTSPReadTimeout:    rtspReadTimeout,
 		SnapshotTimeout:    snapshotTimeout,
 		PreEventWindow:     preEventWindow,
+		WebRTCEnabled:      webRTCEnabled,
+		WebRTCPortMin:      webRTCPortMin,
+		WebRTCPortMax:      webRTCPortMax,
+		WebRTCPublicIP:     env("NVR_WEBRTC_PUBLIC_IP", ""),
 	}
 	for _, dir := range []string{cfg.DataDir, cfg.RuntimeDir, cfg.StorageDir} {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
@@ -112,4 +129,12 @@ func envDurationSeconds(name string, fallback int) (time.Duration, error) {
 	if err != nil { return 0, err }
 	if value <= 0 { return 0, fmt.Errorf("%s must be greater than zero", name) }
 	return time.Duration(value) * time.Second, nil
+}
+
+func envBool(name string, fallback bool) (bool, error) {
+	raw := os.Getenv(name)
+	if raw == "" { return fallback, nil }
+	value, err := strconv.ParseBool(raw)
+	if err != nil { return false, fmt.Errorf("%s must be a boolean: %w", name, err) }
+	return value, nil
 }
