@@ -32,6 +32,7 @@ func AttachPluginRoutes(s *Server, deps PluginDependencies) {
 	s.mux.Handle("GET /api/v1/plugin/v1/cameras/{id}/frame", pluginAuth(deps.Token, http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handlePluginFrame(s,w,r) })))
 	s.mux.Handle("POST /api/v1/plugin/v1/evidence", pluginAuth(deps.Token, http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handlePluginEvidence(deps,w,r) })))
 	s.mux.Handle("POST /api/v1/plugin/v1/events", pluginAuth(deps.Token, http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handlePluginEvent(s,deps,w,r) })))
+	s.mux.Handle("GET /api/v1/plugins/plate-ocr/status", s.auth(http.HandlerFunc(s.handlePluginStatus)))
 	s.mux.Handle("GET /api/v1/events/plates", s.auth(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handlePlateSearch(deps,w,r) })))
 	s.mux.Handle("GET /api/v1/events/{id}/evidence", s.auth(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handleEvidenceGet(deps,w,r) })))
 	s.mux.Handle("GET /api/v1/hotlist", s.require("evidence", http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handleHotlistList(deps,w,r) })))
