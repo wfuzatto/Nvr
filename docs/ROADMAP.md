@@ -11,11 +11,12 @@
 
 ## Fase 1 — NVR single-node
 - [x] cadastro de câmera;
-- [ ] ONVIF discovery;
+- [x] ONVIF discovery, profiles, provisioning e PTZ;
 - [x] RTSP ingest persistente;
 - [x] health monitor / watchdog;
 - [x] gravação H.264/H.265 segmentada;
 - [x] timeline;
+- [x] playback HLS/VOD sem reencode;
 - [ ] live WebRTC/HLS;
 - [x] retenção;
 - [x] snapshot HTTP/Digest quando a câmera fornece endpoint;
