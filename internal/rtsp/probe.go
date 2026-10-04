@@ -223,7 +223,7 @@ func parseAuthParams(raw string) map[string]string {
 		kv := strings.SplitN(part, "=", 2)
 		if len(kv) != 2 { return }
 		key := strings.ToLower(strings.TrimSpace(kv[0]))
-		value := strings.Trim(strings.TrimSpace(kv[1]), "`")
+		value := strings.Trim(strings.TrimSpace(kv[1]), "\\\"")
 		out[key] = value
 	}
 	for _, r := range raw {
