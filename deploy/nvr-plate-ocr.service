@@ -15,7 +15,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadOnlyPaths=/var/lib/nvr/plugin.token
+ReadOnlyPaths=-/var/lib/nvr/plugin.token
 ReadWritePaths=/var/lib/plate-ocr
 LimitNOFILE=65536
 
