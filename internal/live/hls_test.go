@@ -16,6 +16,7 @@ func TestLiveHubCreatesSegmentOnKeyframeBoundary(t *testing.T) {
 	manager.target=100*time.Millisecond
 	manager.idle=time.Minute
 
+	manager.ensureHub("cam-1")
 	result:=make(chan []Segment,1)
 	go func() {
 		waitCtx,waitCancel:=context.WithTimeout(ctx,2*time.Second)
@@ -24,7 +25,6 @@ func TestLiveHubCreatesSegmentOnKeyframeBoundary(t *testing.T) {
 		result<-segments
 	}()
 
-	time.Sleep(20*time.Millisecond)
 	now:=time.Now().UTC()
 	bootstrap:=[][]byte{{0x67,1},{0x68,2}}
 	broker.Publish(framebroker.EncodedFrame{CameraID:"cam-1",Codec:"H264",ClockRate:90000,Timestamp:1000,Keyframe:true,Received:now,Bootstrap:bootstrap,Data:[]byte{0,0,0,1,0x65,1}})
