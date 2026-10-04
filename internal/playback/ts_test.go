@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/wfuzatto/Nvr/internal/framebroker"
 	"github.com/wfuzatto/Nvr/internal/media"
 )
 
@@ -62,5 +63,18 @@ func TestMuxSegmentTS(t *testing.T) {
 	data:=out.Bytes()
 	for i:=0;i<len(data);i+=188 {
 		if data[i]!=0x47 { t.Fatalf("missing sync byte at packet %d",i/188) }
+	}
+}
+
+func TestMuxEncodedFramesTS(t *testing.T) {
+	frames:=[]framebroker.EncodedFrame{
+		{CameraID:"cam",Codec:"H264",ClockRate:90000,Timestamp:1000,Keyframe:true,Bootstrap:[][]byte{{0x67,1},{0x68,2}},Data:[]byte{0,0,0,1,0x65,3}},
+		{CameraID:"cam",Codec:"H264",ClockRate:90000,Timestamp:4600,Data:[]byte{0,0,0,1,0x41,4}},
+	}
+	var out bytes.Buffer
+	if err:=MuxEncodedFramesTS(frames,&out); err!=nil { t.Fatal(err) }
+	if out.Len()==0 || out.Len()%188!=0 { t.Fatalf("invalid TS length %d",out.Len()) }
+	for i:=0;i<out.Len();i+=188 {
+		if out.Bytes()[i]!=0x47 { t.Fatalf("missing sync at packet %d",i/188) }
 	}
 }
