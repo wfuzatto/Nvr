@@ -43,11 +43,16 @@ func main() {
 		log.Printf("IMPORTANT: first-run administrator token: %s", adminToken)
 		log.Printf("The token is also stored at %s with restrictive permissions.", cfg.AdminTokenFile)
 	}
+	pluginToken, pluginCreated, err := security.LoadOrCreateToken(cfg.PluginTokenFile)
+	if err != nil { log.Fatalf("plugin token: %v", err) }
+	if pluginCreated { log.Printf("plugin runtime token created at %s", cfg.PluginTokenFile) }
 
 	cameraStore, err := store.OpenFileCameraStore(cfg.CameraDBFile)
 	if err != nil {
 		log.Fatalf("camera store: %v", err)
 	}
+	eventStore, err := store.OpenFileEventStore(cfg.EventDBFile)
+	if err != nil { log.Fatalf("event store: %v", err) }
 	authManager, err := security.OpenAuthManager(cfg.UsersFile, adminToken)
 	if err != nil {
 		log.Fatalf("auth manager: %v", err)
@@ -85,6 +90,9 @@ func main() {
 		Config: cfg, Version: version, AdminToken: adminToken,
 		SecretBox: box, Auth: authManager, Audit: auditLog, Evidence: evidenceManager, Cameras: cameraStore, Media: mediaManager, Live: liveManager, WebRTC: webRTCManager,
 	})
+	httpapi.AttachPluginRoutes(api,httpapi.PluginDependencies{
+		Token:pluginToken,Events:eventStore,EvidenceDir:cfg.PluginEvidenceDir,
+	})
 
 	server := &http.Server{
 		Addr: cfg.ListenAddress, Handler: api.Handler(),
@@ -98,6 +106,7 @@ func main() {
 	go func() {
 		log.Printf("NVR %s listening on http://%s", version, cfg.ListenAddress)
 		log.Printf("media engine enabled: segment=%s retention=%dd max_bytes=%d", cfg.SegmentDuration, cfg.RetentionDays, cfg.StorageMaxBytes)
+		log.Printf("plugin runtime enabled: events=%s evidence=%s",cfg.EventDBFile,cfg.PluginEvidenceDir)
 		if webRTCManager != nil {
 			log.Printf("WebRTC enabled: UDP %d (ICE mux) public_ip_configured=%t", cfg.WebRTCUDPPort, cfg.WebRTCPublicIP != "")
 		} else {
