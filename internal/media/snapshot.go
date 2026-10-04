@@ -39,9 +39,9 @@ func FetchSnapshot(ctx context.Context, rawURL string, timeout time.Duration) ([
 	if err != nil { return nil, "", err }
 
 	if resp.StatusCode == http.StatusUnauthorized && username != "" {
-		challenge := resp.Header.Get("WWW-Authenticate")
+		challenge := findDigestChallenge(resp.Header.Values("WWW-Authenticate"))
 		_ = resp.Body.Close()
-		if digest := extractDigestChallenge(challenge); digest != "" {
+		if digest := challenge; digest != "" {
 			auth, err := buildHTTPDigestAuthorization(digest, username, password, http.MethodGet, u.RequestURI())
 			if err != nil { return nil, "", err }
 			resp, err = doSnapshotRequest(ctx, client, u, "", "", auth)
@@ -82,11 +82,13 @@ func doSnapshotRequest(ctx context.Context, client *http.Client, u *url.URL, use
 	return client.Do(req)
 }
 
-func extractDigestChallenge(raw string) string {
-	lower := strings.ToLower(raw)
-	index := strings.Index(lower, "digest ")
-	if index < 0 { return "" }
-	return strings.TrimSpace(raw[index:])
+func findDigestChallenge(values []string) string {
+	for _, raw := range values {
+		lower := strings.ToLower(raw)
+		index := strings.Index(lower, "digest ")
+		if index >= 0 { return strings.TrimSpace(raw[index:]) }
+	}
+	return ""
 }
 
 func buildHTTPDigestAuthorization(challenge, username, password, method, uri string) (string, error) {
