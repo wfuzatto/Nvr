@@ -234,8 +234,7 @@ func (m *Manager) persistLocked() error {
 	data,err:=json.MarshalIndent(jobs,"","  "); if err!=nil { return err }
 	path:=filepath.Join(m.exportsDir,"jobs.json")
 	tmp:=path+".tmp"
-	if err:=os.WriteFile(tmp,append(data,'
-'),0o600); err!=nil { return err }
+	if err:=os.WriteFile(tmp,append(data, 10),0o600); err!=nil { return err }
 	if err:=os.Rename(tmp,path); err!=nil { return err }
 	return os.Chmod(path,0o600)
 }
