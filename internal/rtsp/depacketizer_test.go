@@ -1,0 +1,32 @@
+package rtsp
+
+import "testing"
+
+func TestH264SingleNAL(t *testing.T) {
+	d, err := NewDepacketizer("H264", 96)
+	if err != nil { t.Fatal(err) }
+
+	au, err := d.Push(RTPPacket{PayloadType:96, Timestamp:100, Marker:true, Payload:[]byte{0x65,1,2,3}})
+	if err != nil { t.Fatal(err) }
+	if au == nil || !au.Keyframe { t.Fatalf("unexpected access unit: %+v", au) }
+	if len(au.Data) != 8 { t.Fatalf("data len=%d", len(au.Data)) }
+}
+
+func TestH264FUA(t *testing.T) {
+	d, _ := NewDepacketizer("H264", 96)
+	if au, err := d.Push(RTPPacket{PayloadType:96, Timestamp:1, Marker:false, Payload:[]byte{0x7c,0x85,1,2}}); err != nil || au != nil {
+		t.Fatalf("start err=%v au=%v", err, au)
+	}
+	au, err := d.Push(RTPPacket{PayloadType:96, Timestamp:1, Marker:true, Payload:[]byte{0x7c,0x45,3,4}})
+	if err != nil { t.Fatal(err) }
+	if au == nil || !au.Keyframe { t.Fatalf("unexpected access unit: %+v", au) }
+}
+
+func TestH265SingleNAL(t *testing.T) {
+	d, err := NewDepacketizer("H265", 98)
+	if err != nil { t.Fatal(err) }
+	// Type 19 IDR_W_RADL.
+	au, err := d.Push(RTPPacket{PayloadType:98, Timestamp:9, Marker:true, Payload:[]byte{19<<1,1,2,3}})
+	if err != nil { t.Fatal(err) }
+	if au == nil || !au.Keyframe { t.Fatalf("unexpected access unit: %+v", au) }
+}
