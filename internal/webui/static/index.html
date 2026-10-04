@@ -56,6 +56,41 @@
     </form>
   </dialog>
 
+  <dialog id="onvifDialog" class="wide-dialog">
+    <form id="onvifForm">
+      <div class="dialog-head">
+        <div><div class="eyebrow">ONVIF</div><h2>Descobrir e adicionar câmera</h2></div>
+        <button type="button" class="icon" id="closeOnvif">×</button>
+      </div>
+      <div class="onvif-actions">
+        <button type="button" class="secondary" id="scanOnvif">Procurar na rede</button>
+        <span id="onvifScanStatus" class="muted"></span>
+      </div>
+      <div id="onvifDevices" class="device-list"></div>
+      <div class="grid2">
+        <label>Endpoint ONVIF<input id="onvifEndpoint" name="endpoint" placeholder="http://10.0.0.10/onvif/device_service" required></label>
+        <label>Usuário<input name="username" autocomplete="username"></label>
+      </div>
+      <div class="grid2">
+        <label>Senha<input name="password" type="password" autocomplete="current-password"></label>
+        <label>Perfil<select id="onvifProfile" name="profile_token" disabled><option>Leia os perfis primeiro</option></select></label>
+      </div>
+      <div class="actions left">
+        <button type="button" class="secondary" id="inspectOnvif">Ler dispositivo e perfis</button>
+        <span id="onvifDeviceInfo" class="muted"></span>
+      </div>
+      <hr>
+      <div class="grid2">
+        <label>Nome no NVR<input name="name" required></label>
+        <label>Cidade<input name="city"></label>
+      </div>
+      <label>Site / Região<input name="site"></label>
+      <label>Descrição<textarea name="description" rows="2"></textarea></label>
+      <label class="check"><input name="enabled" type="checkbox" checked> Adicionar habilitada e iniciar gravação</label>
+      <div class="actions"><button type="submit" id="addOnvifCamera" disabled>Adicionar câmera ONVIF</button></div>
+    </form>
+  </dialog>
+
   <dialog id="tokenDialog">
     <form id="tokenForm">
       <div class="dialog-head"><h2>Administrador</h2><button type="button" class="icon" id="closeToken">×</button></div>
