@@ -121,6 +121,11 @@ func (s *Server) handleReadiness(w http.ResponseWriter, _ *http.Request) {
 		ok = false
 	} else { checks["storage_dir"] = "ok" }
 	checks["runtime_dir"] = s.deps.Config.RuntimeDir
+	if s.deps.WebRTC != nil {
+		checks["webrtc"] = s.deps.WebRTC.Stats()
+	} else {
+		checks["webrtc"] = "optional_unavailable"
+	}
 	checks["network_download_required"] = false
 	status := http.StatusOK
 	if !ok { status = http.StatusServiceUnavailable }
