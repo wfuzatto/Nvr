@@ -82,4 +82,4 @@ GOFLAGS=-mod=vendor
 
 O `vendor/`, `go.mod` e `go.sum` são gravados no próprio repositório pelo pipeline de `main`.
 
-O runtime não usa STUN/TURN público por padrão. Em LAN o WebRTC usa ICE local; fora da LAN pode ser configurado `NVR_WEBRTC_PUBLIC_IP` e encaminhamento da faixa UDP.
+O runtime não usa STUN/TURN público por padrão. Em LAN o WebRTC usa ICE local; fora da LAN pode ser configurado `NVR_WEBRTC_PUBLIC_IP` e encaminhamento da porta UDP configurada.
