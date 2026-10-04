@@ -26,8 +26,8 @@
 - [x] retenção;
 - [x] snapshot HTTP/Digest quando a câmera fornece endpoint;
 - [x] proteção de segmento/evidência;
-- [ ] exportação de clip com corte exato;
-- [ ] usuários/RBAC completo.
+- [x] exportação de evidência por intervalo, alinhada ao primeiro keyframe e com intervalo real declarado no manifesto;
+- [x] usuários/RBAC local Viewer/Operator/Supervisor/Admin;
 
 Critério: operar 24/7 sem vazamento de recursos e recuperar automaticamente streams interrompidos.
 
@@ -43,9 +43,10 @@ Critério: operar 24/7 sem vazamento de recursos e recuperar automaticamente str
 - [x] deduplicação e votação multi-frame;
 - [x] spool/replay quando o NVR está indisponível;
 - [x] healthcheck e métricas do Plate OCR;
+- [x] empacotamento offline conjunto NVR + Plate OCR;
 - [ ] decoder contínuo/frame broker NV12 para analytics de FPS alto;
 - [ ] provider neural validado para cenários difíceis;
-- [ ] hotlist com alerta;
+- [x] hotlist persistente com classificação automática de alerta;
 - [ ] clip exato associado ao evento.
 
 ## Fase 3 — multi-node
