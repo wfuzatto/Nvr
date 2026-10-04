@@ -107,17 +107,16 @@ Configuração padrão:
 
 ```
 NVR_WEBRTC_ENABLED=true
-NVR_WEBRTC_UDP_MIN=50000
-NVR_WEBRTC_UDP_MAX=50100
+NVR_WEBRTC_UDP_PORT=50000
 ```
 
 No firewall Linux, quando necessário:
 
 ```bash
-sudo ufw allow 50000:50100/udp
+sudo ufw allow 50000/udp
 ```
 
-O intervalo pode ser alterado.
+A porta pode ser alterada.
 
 ## Acesso por NAT / Internet
 
@@ -127,7 +126,7 @@ Se o servidor possuir um endereço público encaminhado para ele, configure:
 NVR_WEBRTC_PUBLIC_IP=203.0.113.10
 ```
 
-Também encaminhe a faixa UDP configurada no roteador/firewall.
+Também encaminhe essa porta UDP no roteador/firewall.
 
 O NVR anuncia esse endereço como candidato ICE host mapeado.
 
@@ -139,7 +138,7 @@ Um TURN próprio poderá ser adicionado futuramente como componente opcional e o
 
 ## Escala
 
-A arquitetura evita um subscriber do Frame Broker por navegador.
+A arquitetura evita um subscriber do Frame Broker por navegador e usa o ICE UDP mux do Pion para compartilhar uma única porta UDP entre todos os PeerConnections.
 
 Para cada câmera ativa em WebRTC existe:
 
