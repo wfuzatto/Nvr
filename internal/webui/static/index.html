@@ -16,14 +16,15 @@
       <div>
         <div class="eyebrow">EDGE-FIRST • OFFLINE-FIRST</div>
         <h1>Videomonitoramento</h1>
-        <p>Base do NVR municipal: inventário seguro de câmeras, diagnóstico local e API sem recursos externos.</p>
+        <p>Core municipal com gravação RTSP local, retenção, timeline e pipeline de análise sem dependências online.</p>
       </div>
       <button id="authBtn" class="secondary">Token administrador</button>
     </section>
 
     <section class="stats">
       <article><span>Câmeras</span><strong id="cameraCount">—</strong></article>
-      <article><span>Ativas</span><strong id="enabledCount">—</strong></article>
+      <article><span>Habilitadas</span><strong id="enabledCount">—</strong></article>
+      <article><span>Gravando</span><strong id="recordingCount">—</strong></article>
       <article><span>Runtime</span><strong>Offline</strong></article>
     </section>
 
@@ -35,7 +36,7 @@
       <div id="notice"></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Nome</th><th>Cidade / Site</th><th>RTSP</th><th>Status</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Nome</th><th>Cidade / Site</th><th>RTSP</th><th>Mídia</th><th>Ações</th></tr></thead>
           <tbody id="cameraRows"><tr><td colspan="5" class="empty">Informe o token para carregar as câmeras.</td></tr></tbody>
         </table>
       </div>
@@ -48,8 +49,9 @@
       <label>Nome<input name="name" required autocomplete="off"></label>
       <div class="grid2"><label>Cidade<input name="city"></label><label>Site / Região<input name="site"></label></div>
       <label>URL RTSP<input name="rtsp_url" required placeholder="rtsp://usuario:senha@10.0.0.10:554/..."></label>
+      <label>URL de snapshot <span class="muted small">(opcional)</span><input name="snapshot_url" placeholder="http://usuario:senha@10.0.0.10/ISAPI/Streaming/channels/101/picture"></label>
       <label>Descrição<textarea name="description" rows="3"></textarea></label>
-      <label class="check"><input name="enabled" type="checkbox" checked> Câmera habilitada</label>
+      <label class="check"><input name="enabled" type="checkbox" checked> Câmera habilitada e gravando</label>
       <div class="actions"><button type="button" class="secondary" id="cancelDialog">Cancelar</button><button type="submit">Salvar</button></div>
     </form>
   </dialog>
@@ -61,6 +63,12 @@
       <label>Token<input id="tokenInput" type="password" autocomplete="off" required></label>
       <div class="actions"><button type="submit">Entrar</button></div>
     </form>
+  </dialog>
+
+  <dialog id="snapshotDialog" class="snapshot-dialog">
+    <div class="dialog-head"><h2>Snapshot</h2><button type="button" class="icon" id="closeSnapshot">×</button></div>
+    <div id="snapshotLoading" class="empty">Carregando...</div>
+    <img id="snapshotImage" alt="Snapshot da câmera" hidden>
   </dialog>
 
   <script src="/app.js"></script>

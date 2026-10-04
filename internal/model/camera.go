@@ -8,32 +8,35 @@ import (
 )
 
 type Camera struct {
-	ID string `json:"id"`
-	Name string `json:"name"`
-	Description string `json:"description,omitempty"`
-	City string `json:"city,omitempty"`
-	Site string `json:"site,omitempty"`
-	Latitude *float64 `json:"latitude,omitempty"`
-	Longitude *float64 `json:"longitude,omitempty"`
-	Enabled bool `json:"enabled"`
-	RTSPURLCipher string `json:"rtsp_url_cipher"`
-	RTSPURLRedacted string `json:"rtsp_url_redacted"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                  string    `json:"id"`
+	Name                string    `json:"name"`
+	Description         string    `json:"description,omitempty"`
+	City                string    `json:"city,omitempty"`
+	Site                string    `json:"site,omitempty"`
+	Latitude            *float64  `json:"latitude,omitempty"`
+	Longitude           *float64  `json:"longitude,omitempty"`
+	Enabled             bool      `json:"enabled"`
+	RTSPURLCipher       string    `json:"rtsp_url_cipher"`
+	RTSPURLRedacted     string    `json:"rtsp_url_redacted"`
+	SnapshotURLCipher   string    `json:"snapshot_url_cipher,omitempty"`
+	SnapshotURLRedacted string    `json:"snapshot_url_redacted,omitempty"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 type CameraPublic struct {
-	ID string `json:"id"`
-	Name string `json:"name"`
-	Description string `json:"description,omitempty"`
-	City string `json:"city,omitempty"`
-	Site string `json:"site,omitempty"`
-	Latitude *float64 `json:"latitude,omitempty"`
-	Longitude *float64 `json:"longitude,omitempty"`
-	Enabled bool `json:"enabled"`
-	RTSPURLRedacted string `json:"rtsp_url"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                  string    `json:"id"`
+	Name                string    `json:"name"`
+	Description         string    `json:"description,omitempty"`
+	City                string    `json:"city,omitempty"`
+	Site                string    `json:"site,omitempty"`
+	Latitude            *float64  `json:"latitude,omitempty"`
+	Longitude           *float64  `json:"longitude,omitempty"`
+	Enabled             bool      `json:"enabled"`
+	RTSPURLRedacted     string    `json:"rtsp_url"`
+	SnapshotURLRedacted string    `json:"snapshot_url,omitempty"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 func (c Camera) Public() CameraPublic {
@@ -41,6 +44,7 @@ func (c Camera) Public() CameraPublic {
 		ID: c.ID, Name: c.Name, Description: c.Description,
 		City: c.City, Site: c.Site, Latitude: c.Latitude, Longitude: c.Longitude,
 		Enabled: c.Enabled, RTSPURLRedacted: c.RTSPURLRedacted,
+		SnapshotURLRedacted: c.SnapshotURLRedacted,
 		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
 	}
 }

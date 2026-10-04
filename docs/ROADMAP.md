@@ -10,22 +10,25 @@
 - políticas de versionamento.
 
 ## Fase 1 — NVR single-node
-- cadastro de câmera.
-- ONVIF discovery.
-- RTSP ingest.
-- health monitor.
-- gravação segmentada.
-- timeline.
-- live WebRTC/HLS.
-- retenção.
-- exportação de clip.
-- usuários/RBAC básico.
+- [x] cadastro de câmera;
+- [ ] ONVIF discovery;
+- [x] RTSP ingest persistente;
+- [x] health monitor / watchdog;
+- [x] gravação H.264/H.265 segmentada;
+- [x] timeline;
+- [ ] live WebRTC/HLS;
+- [x] retenção;
+- [x] snapshot HTTP/Digest quando a câmera fornece endpoint;
+- [x] proteção de segmento/evidência;
+- [ ] exportação de clip com corte exato;
+- [ ] usuários/RBAC completo.
 
 Critério: operar 24/7 sem vazamento de recursos e recuperar automaticamente streams interrompidos.
 
 ## Fase 2 — plugin runtime + Plate OCR
-- frame broker.
-- instalação/enable/disable de plugins.
+- [x] frame broker codificado não bloqueante;
+- [ ] decoder/frame broker em pixel format;
+- [ ] instalação/enable/disable de plugins.
 - resource limits.
 - plate_ocr end-to-end.
 - busca por placa.

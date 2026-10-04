@@ -1,6 +1,6 @@
 # ADR 0001 — Stack de plataforma
 
-Status: Accepted
+Status: Accepted (media-engine decision partially superseded by ADR 0002)
 
 ## Decisão
 
@@ -56,3 +56,8 @@ Não serão colocados:
 - vídeo no PostgreSQL;
 - credenciais de câmera nos plugins por padrão;
 - dependência de Kubernetes na primeira versão.
+
+
+## Atualização
+
+A decisão original de Rust + GStreamer no caminho crítico do Media Engine foi parcialmente supersedida pelo `ADR 0002 — Media ingest nativo e offline`. O ingest/record core atual é Go puro; GStreamer/FFmpeg ficam como runtimes opcionais futuros.

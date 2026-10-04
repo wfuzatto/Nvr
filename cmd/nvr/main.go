@@ -11,12 +11,14 @@ import (
 	"time"
 
 	"github.com/wfuzatto/Nvr/internal/config"
+	"github.com/wfuzatto/Nvr/internal/framebroker"
 	"github.com/wfuzatto/Nvr/internal/httpapi"
+	"github.com/wfuzatto/Nvr/internal/media"
 	"github.com/wfuzatto/Nvr/internal/security"
 	"github.com/wfuzatto/Nvr/internal/store"
 )
 
-const version = "0.1.0-dev"
+const version = "0.2.0-dev"
 
 func main() {
 	cfg, err := config.Load()
@@ -43,9 +45,16 @@ func main() {
 		log.Fatalf("camera store: %v", err)
 	}
 
+	appCtx, appCancel := context.WithCancel(context.Background())
+	defer appCancel()
+
+	broker := framebroker.New()
+	mediaManager := media.NewManager(cfg, cameraStore, box, broker)
+	mediaManager.Start(appCtx)
+
 	api := httpapi.New(httpapi.Dependencies{
 		Config: cfg, Version: version, AdminToken: adminToken,
-		SecretBox: box, Cameras: cameraStore,
+		SecretBox: box, Cameras: cameraStore, Media: mediaManager,
 	})
 
 	server := &http.Server{
@@ -59,6 +68,7 @@ func main() {
 	errCh := make(chan error, 1)
 	go func() {
 		log.Printf("NVR %s listening on http://%s", version, cfg.ListenAddress)
+		log.Printf("media engine enabled: segment=%s retention=%dd max_bytes=%d", cfg.SegmentDuration, cfg.RetentionDays, cfg.StorageMaxBytes)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
@@ -70,9 +80,10 @@ func main() {
 	case sig := <-sigCh:
 		log.Printf("received signal %s; shutting down", sig)
 	case err := <-errCh:
-		log.Fatalf("server: %v", err)
+		log.Printf("server error: %v", err)
 	}
 
+	appCancel()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := server.Shutdown(ctx); err != nil {
