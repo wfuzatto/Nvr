@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
-  "source_commit": "bacf5a06f1aae485924807fb9e785bde56d4b903",
+  "source_commit": "4131d50de610028e143d589b17a0ec60e0bd46c3",
   "go_version": "go1.24.13",
   "artifacts": [
     {
       "os": "linux",
       "arch": "amd64",
       "path": "offline/bin/linux-amd64/nvr",
-      "sha256": "7ac6ce0626f154cbc39d8cd271c40c764afd9aa676422a480b93676bd6666215"
+      "sha256": "1472b2e863f0fd3ac5c78b75ad48214787efdc84cfaec6c95a20fe15b02f8abf"
     },
     {
       "os": "linux",
       "arch": "arm64",
       "path": "offline/bin/linux-arm64/nvr",
-      "sha256": "63ea0e5975970a470733afbb918f60777be66c929d377db3605d9312a69f8951"
+      "sha256": "627863ffa873ea5a6663771e70f42f33a7b1776f2cf71d45f58a2c12d2f3cc5b"
     }
   ]
 }
