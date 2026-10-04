@@ -10,18 +10,18 @@ Novos segmentos possuem:
 
 ```
 arquivo.h264
-arquivo.h264.frames.jsonl
+arquivo.h264.frames.idx
 ```
 
-Cada linha do sidecar registra:
+O sidecar usa registros binários fixos de 20 bytes. Cada registro contém:
 
-- offset;
-- length;
-- RTP timestamp;
-- keyframe;
-- horário de recepção.
+- offset de 64 bits;
+- comprimento de 32 bits;
+- RTP timestamp de 32 bits;
+- flag de keyframe;
+- bytes reservados para evolução do formato.
 
-O sidecar é pequeno e não duplica o payload de vídeo.
+Há um header versionado `NVFI`. O sidecar não duplica o payload de vídeo e foi desenhado para manter overhead baixo em instalações com milhares de câmeras.
 
 ## HLS
 
