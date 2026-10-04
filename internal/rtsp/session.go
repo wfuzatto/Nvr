@@ -21,6 +21,7 @@ type VideoTrack struct {
 	PayloadType uint8
 	ClockRate   int
 	Control     string
+	PlayControl string
 	Bootstrap   [][]byte
 }
 
@@ -35,6 +36,7 @@ type Session struct {
 	authChallenge string
 	sessionID     string
 	track         VideoTrack
+	playURL       string
 	readTimeout   time.Duration
 	rtpChannel    byte
 	done          chan struct{}
@@ -102,6 +104,8 @@ func OpenSession(ctx context.Context, rawURL string, readTimeout time.Duration) 
 	track, err := parseVideoTrack(string(describe.body), base)
 	if err != nil { return fail(err) }
 	s.track = track
+	s.playURL = track.PlayControl
+	if s.playURL == "" { s.playURL = base }
 
 	setupHeaders := map[string]string{
 		"Transport": "RTP/AVP/TCP;unicast;interleaved=0-1",
@@ -123,11 +127,11 @@ func OpenSession(ctx context.Context, rawURL string, readTimeout time.Duration) 
 	if err != nil { return fail(err) }
 	s.rtpChannel = channel
 
-	play, err := s.request("PLAY", s.baseURL, map[string]string{"Session":s.sessionID})
+	play, err := s.request("PLAY", s.playURL, map[string]string{"Session":s.sessionID})
 	if err != nil { return fail(err) }
 	if play.code == 401 {
 		s.authChallenge = play.header.Get("WWW-Authenticate")
-		play, err = s.request("PLAY", s.baseURL, map[string]string{"Session":s.sessionID})
+		play, err = s.request("PLAY", s.playURL, map[string]string{"Session":s.sessionID})
 		if err != nil { return fail(err) }
 	}
 	if play.code < 200 || play.code >= 300 {
@@ -180,7 +184,9 @@ func (s *Session) Close() error {
 	s.closeOnce.Do(func() {
 		close(s.done)
 		if s.sessionID != "" {
-			_ = s.writeOnly("TEARDOWN", s.baseURL, map[string]string{"Session":s.sessionID})
+			target := s.playURL
+			if target == "" { target = s.baseURL }
+			_ = s.writeOnly("TEARDOWN", target, map[string]string{"Session":s.sessionID})
 		}
 		err = s.conn.Close()
 	})
@@ -275,6 +281,7 @@ func parseVideoTrack(sdp, base string) (VideoTrack, error) {
 	}
 	var tracks []*candidate
 	var current *candidate
+	sessionControl := ""
 
 	lines := strings.Split(strings.ReplaceAll(sdp, "\r\n", "\n"), "\n")
 	for _, raw := range lines {
@@ -291,7 +298,12 @@ func parseVideoTrack(sdp, base string) (VideoTrack, error) {
 			}
 			continue
 		}
-		if current == nil { continue }
+		if current == nil {
+			if strings.HasPrefix(line, "a=control:") {
+				sessionControl = strings.TrimSpace(strings.TrimPrefix(line, "a=control:"))
+			}
+			continue
+		}
 
 		if strings.HasPrefix(line, "a=rtpmap:") {
 			value := strings.TrimPrefix(line, "a=rtpmap:")
@@ -325,9 +337,14 @@ func parseVideoTrack(sdp, base string) (VideoTrack, error) {
 		if track.payload < 0 || track.payload > 127 { continue }
 		control, err := resolveControl(base, track.control)
 		if err != nil { continue }
+		playControl := base
+		if sessionControl != "" && sessionControl != "*" {
+			if resolved, err := resolveControl(base, sessionControl); err == nil { playControl = resolved }
+		}
 		return VideoTrack{
 			Codec: codec, PayloadType: uint8(track.payload), ClockRate: track.clock,
-			Control: control, Bootstrap: parseBootstrap(codec, track.fmtp),
+			Control: control, PlayControl: playControl,
+			Bootstrap: parseBootstrap(codec, track.fmtp),
 		}, nil
 	}
 	return VideoTrack{}, errors.New("no supported H264/H265 video track in SDP")
