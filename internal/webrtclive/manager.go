@@ -124,6 +124,11 @@ func (m *Manager) StartSession(ctx context.Context, cameraID, codec, offerSDP st
 	id:=randomID()
 	s:=&session{id:id,cameraID:cameraID,pc:pc,created:time.Now().UTC()}
 
+	m.mu.Lock()
+	m.sessions[id]=s
+	m.mu.Unlock()
+	hub.addPeer()
+
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		switch state {
 		case webrtc.PeerConnectionStateFailed, webrtc.PeerConnectionStateClosed:
@@ -133,37 +138,32 @@ func (m *Manager) StartSession(ctx context.Context, cameraID, codec, offerSDP st
 
 	offer:=webrtc.SessionDescription{Type:webrtc.SDPTypeOffer,SDP:offerSDP}
 	if err:=pc.SetRemoteDescription(offer); err!=nil {
-		_ = pc.Close()
+		m.CloseSession(id)
 		return Answer{},fmt.Errorf("set remote offer: %w",err)
 	}
 	gather:=webrtc.GatheringCompletePromise(pc)
 	answer,err:=pc.CreateAnswer(nil)
 	if err!=nil {
-		_ = pc.Close()
+		m.CloseSession(id)
 		return Answer{},fmt.Errorf("create answer: %w",err)
 	}
 	if err:=pc.SetLocalDescription(answer); err!=nil {
-		_ = pc.Close()
+		m.CloseSession(id)
 		return Answer{},fmt.Errorf("set local answer: %w",err)
 	}
 
 	select {
 	case <-ctx.Done():
-		_ = pc.Close()
+		m.CloseSession(id)
 		return Answer{},ctx.Err()
 	case <-gather:
 	}
 
 	local:=pc.LocalDescription()
 	if local==nil {
-		_ = pc.Close()
+		m.CloseSession(id)
 		return Answer{},errors.New("WebRTC local description unavailable")
 	}
-
-	m.mu.Lock()
-	m.sessions[id]=s
-	m.mu.Unlock()
-	hub.addPeer()
 
 	return Answer{SessionID:id,Type:"answer",SDP:local.SDP},nil
 }
