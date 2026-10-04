@@ -178,6 +178,7 @@ func (s *Server) handleTestCamera(w http.ResponseWriter, r *http.Request) {
 			"target": camera.RTSPURLRedacted,
 			"error": err.Error(),
 			"rtsp": result,
+			"latency_ms": result.LatencyMS,
 		})
 		return
 	}
@@ -186,6 +187,7 @@ func (s *Server) handleTestCamera(w http.ResponseWriter, r *http.Request) {
 		"reachable": true,
 		"target": camera.RTSPURLRedacted,
 		"rtsp": result,
+		"latency_ms": result.LatencyMS,
 	})
 }
 
