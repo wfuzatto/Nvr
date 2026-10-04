@@ -104,7 +104,7 @@ func (r *Recorder) Write(au rtsp.AccessUnit) (*Segment, error) {
 
 	entry := FrameIndexEntry{
 		Offset:offset, Length:n, Timestamp:au.Timestamp,
-		Keyframe:au.Keyframe, Received:when.UTC(),
+		Keyframe:au.Keyframe,
 	}
 	if err := r.writeFrameIndex(entry); err != nil { _ = r.abortCurrent(); return completed, err }
 
