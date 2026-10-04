@@ -59,8 +59,7 @@ func (l *Log) Append(event Event) (Event,error) {
 	if err:=os.MkdirAll(filepath.Dir(l.path),0o750); err!=nil { l.sequence--; return Event{},err }
 	f,err:=os.OpenFile(l.path,os.O_CREATE|os.O_APPEND|os.O_WRONLY,0o600)
 	if err!=nil { l.sequence--; return Event{},err }
-	if _,err=f.Write(append(final,'
-')); err==nil { err=f.Sync() }
+	if _,err=f.Write(append(final, 10)); err==nil { err=f.Sync() }
 	closeErr:=f.Close()
 	if err==nil { err=closeErr }
 	if err!=nil { l.sequence--; return Event{},err }
