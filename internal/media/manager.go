@@ -232,7 +232,7 @@ func (m *Manager) recordSession(ctx context.Context, cameraID, rawURL string) er
 
 	depacketizer, err := rtsp.NewDepacketizer(track.Codec, track.PayloadType)
 	if err != nil { _ = session.Close(); return err }
-	recorder, err := NewRecorder(m.cfg.StorageDir, cameraID, track.Codec, m.cfg.SegmentDuration, track.Bootstrap)
+	recorder, err := NewRecorder(m.cfg.StorageDir, cameraID, track.Codec, track.ClockRate, m.cfg.SegmentDuration, track.Bootstrap)
 	if err != nil { _ = session.Close(); return err }
 
 	sessionDone := make(chan struct{})
