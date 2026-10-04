@@ -262,8 +262,7 @@ func (m *AuthManager) persistLocked() error {
 	payload,err:=json.MarshalIndent(diskUsers{Version:1,Users:users},"","  ")
 	if err!=nil { return err }
 	tmp:=m.path+".tmp"
-	if err:=os.WriteFile(tmp,append(payload,'
-'),0o600); err!=nil { return err }
+	if err:=os.WriteFile(tmp,append(payload, 10),0o600); err!=nil { return err }
 	f,err:=os.OpenFile(tmp,os.O_WRONLY,0)
 	if err==nil { _=f.Sync(); _=f.Close() }
 	if err:=os.Rename(tmp,m.path); err!=nil { return err }
