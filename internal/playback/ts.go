@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/wfuzatto/Nvr/internal/framebroker"
 	"github.com/wfuzatto/Nvr/internal/media"
 )
 
@@ -87,6 +88,47 @@ func MuxSegmentTS(root string, segment media.Segment, w io.Writer) error {
 		}
 		delta:=uint32(frame.Timestamp-firstTS)
 		pts:=uint64(delta)*90000/uint64(segment.ClockRate)
+		if err:=mux.writePES(payload,pts); err!=nil { return err }
+	}
+	return nil
+}
+
+func MuxEncodedFramesTS(frames []framebroker.EncodedFrame, w io.Writer) error {
+	if len(frames)==0 { return errors.New("no encoded frames") }
+	first:=frames[0]
+	codec:=strings.ToUpper(first.Codec)
+	if codec=="HEVC" { codec="H265" }
+	if codec!="H264" && codec!="H265" { return fmt.Errorf("unsupported live codec %q",first.Codec) }
+	clock:=first.ClockRate
+	if clock<=0 { clock=90000 }
+
+	mux:=&tsMuxer{w:w,cc:make(map[uint16]byte),codec:codec}
+	if err:=mux.writeTables(); err!=nil { return err }
+
+	firstTS:=first.Timestamp
+	for i,frame:=range frames {
+		if strings.ToUpper(frame.Codec)!=codec && !(codec=="H265" && strings.ToUpper(frame.Codec)=="HEVC") {
+			return errors.New("codec changed within live segment")
+		}
+		payload:=frame.Data
+		if len(payload)==0 { continue }
+		if frame.Keyframe && len(frame.Bootstrap)>0 {
+			extra:=0
+			for _,nal:=range frame.Bootstrap { extra+=4+len(nal) }
+			combined:=make([]byte,0,extra+len(payload))
+			for _,nal:=range frame.Bootstrap {
+				if len(nal)==0 { continue }
+				combined=append(combined,0,0,0,1)
+				combined=append(combined,nal...)
+			}
+			combined=append(combined,payload...)
+			payload=combined
+		}
+		if frame.Keyframe && i>0 {
+			if err:=mux.writeTables(); err!=nil { return err }
+		}
+		delta:=uint32(frame.Timestamp-firstTS)
+		pts:=uint64(delta)*90000/uint64(clock)
 		if err:=mux.writePES(payload,pts); err!=nil { return err }
 	}
 	return nil
