@@ -28,8 +28,8 @@ O vídeo não deve atravessar o servidor central sem necessidade. Cada nó de ed
 - **SO de produção**: Ubuntu Server 26.04 LTS.
 - **Containers**: Docker + Compose por nó na primeira fase; imagens OCI compatíveis com futura orquestração.
 - **Control plane / node agent**: Go.
-- **Media engine**: Rust + GStreamer.
-- **Utilitários de mídia**: FFmpeg.
+- **Media ingest/record core**: Go, sem CGO e sem runtime externo.
+- **Decode/playback opcional futuro**: GStreamer/FFmpeg vendorizados quando necessários.
 - **Frontend**: TypeScript + React.
 - **Plugins de IA**: linguagem livre; referência em Python para ML/CV.
 - **API externa**: REST/OpenAPI.
