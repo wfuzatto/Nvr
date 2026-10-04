@@ -22,8 +22,9 @@ func TestRecorderRotatesOnKeyframe(t *testing.T) {
 	completed, err := r.Write(rtsp.AccessUnit{Codec:"H264", Keyframe:true, ReceivedAt:start.Add(6*time.Second), Data:[]byte{0,0,0,1,0x65,3}})
 	if err != nil { t.Fatal(err) }
 	if completed == nil { t.Fatal("expected completed segment") }
-	if completed.Bytes == 0 || completed.SHA256 == "" { t.Fatalf("invalid segment: %+v", completed) }
+	if completed.Bytes == 0 || completed.SHA256 == "" || completed.FramesPath == "" { t.Fatalf("invalid segment: %+v", completed) }
 	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(completed.Path))); err != nil { t.Fatal(err) }
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(completed.FramesPath))); err != nil { t.Fatal(err) }
 
 	last, err := r.Close()
 	if err != nil { t.Fatal(err) }
