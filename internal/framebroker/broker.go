@@ -67,10 +67,10 @@ func (b *Broker) Publish(frame EncodedFrame) {
 	defer b.mu.RUnlock()
 	for _, sub := range b.subscribers {
 		if sub.cameraID != "" && sub.cameraID != frame.CameraID { continue }
-		copyFrame := frame
-		copyFrame.Data = append([]byte(nil), frame.Data...)
+		// Frame data is immutable after Publish. Sharing the backing slice avoids
+		// duplicating multi-megabyte keyframes for every local consumer.
 		select {
-		case sub.ch <- copyFrame:
+		case sub.ch <- frame:
 		default:
 			b.dropped.Add(1)
 		}
