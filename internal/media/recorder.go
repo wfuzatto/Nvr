@@ -81,6 +81,14 @@ func NewRecorder(root, cameraID, codec string, clockRate int, segmentDuration ti
 	}, nil
 }
 
+func (r *Recorder) SetBootstrap(bootstrap [][]byte) {
+	copied:=make([][]byte,0,len(bootstrap))
+	for _,nal:=range bootstrap {
+		if len(nal)>0 { copied=append(copied,append([]byte(nil),nal...)) }
+	}
+	r.bootstrap=copied
+}
+
 func (r *Recorder) Write(au rtsp.AccessUnit) (*Segment, error) {
 	when := au.ReceivedAt
 	if when.IsZero() { when = time.Now().UTC() }
