@@ -1,11 +1,11 @@
 package playback
 
 import (
-	"bufio"
-	"encoding/json"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,7 +27,7 @@ type tsMuxer struct {
 
 func CanMux(root string, segment media.Segment) bool {
 	if segment.Path=="" { return false }
-	if segment.FramesPath=="" { segment.FramesPath=segment.Path+".frames.jsonl" }
+	if segment.FramesPath=="" { segment.FramesPath=segment.Path+".frames.idx" }
 	videoPath,err:=safeStoragePath(root,segment.Path)
 	if err!=nil { return false }
 	framePath,err:=safeStoragePath(root,segment.FramesPath)
@@ -41,7 +41,7 @@ func CanMux(root string, segment media.Segment) bool {
 func MuxSegmentTS(root string, segment media.Segment, w io.Writer) error {
 	if segment.Partial { return errors.New("cannot mux active partial segment") }
 	if segment.Path=="" { return errors.New("segment path is required") }
-	if segment.FramesPath=="" { segment.FramesPath=segment.Path+".frames.jsonl" }
+	if segment.FramesPath=="" { segment.FramesPath=segment.Path+".frames.idx" }
 	if segment.ClockRate<=0 { segment.ClockRate=90000 }
 
 	videoPath,err:=safeStoragePath(root,segment.Path)
@@ -96,15 +96,33 @@ func readFrameIndex(path string) ([]media.FrameIndexEntry,error) {
 	f,err:=os.Open(path)
 	if err!=nil { return nil,err }
 	defer f.Close()
-	var out []media.FrameIndexEntry
-	scanner:=bufio.NewScanner(f)
-	scanner.Buffer(make([]byte,4096),1024*1024)
-	for scanner.Scan() {
-		var entry media.FrameIndexEntry
-		if err:=json.Unmarshal(scanner.Bytes(),&entry); err!=nil { return nil,err }
-		out=append(out,entry)
+
+	header:=make([]byte,media.FrameIndexHeaderSize)
+	if _,err:=io.ReadFull(f,header); err!=nil { return nil,err }
+	if string(header[:4])!="NVFI" || header[4]!=1 || int(header[5])!=media.FrameIndexRecordSize {
+		return nil,errors.New("unsupported frame index format")
 	}
-	return out,scanner.Err()
+
+	var out []media.FrameIndexEntry
+	record:=make([]byte,media.FrameIndexRecordSize)
+	for {
+		_,err:=io.ReadFull(f,record)
+		if err==io.EOF { break }
+		if err==io.ErrUnexpectedEOF { return nil,errors.New("truncated frame index") }
+		if err!=nil { return nil,err }
+
+		rawOffset:=binary.BigEndian.Uint64(record[0:8])
+		if rawOffset>uint64(math.MaxInt64) { return nil,errors.New("frame offset overflow") }
+		length:=binary.BigEndian.Uint32(record[8:12])
+		if length==0 { return nil,errors.New("invalid frame index length") }
+		out=append(out,media.FrameIndexEntry{
+			Offset:int64(rawOffset),
+			Length:int(length),
+			Timestamp:binary.BigEndian.Uint32(record[12:16]),
+			Keyframe:record[16]&1!=0,
+		})
+	}
+	return out,nil
 }
 
 func safeStoragePath(root,relative string) (string,error) {
