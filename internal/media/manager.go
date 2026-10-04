@@ -273,9 +273,12 @@ func (m *Manager) recordSession(ctx context.Context, cameraID, rawURL string) er
 		}
 		if au == nil { continue }
 
+		var bootstrap [][]byte
+		if au.Keyframe { bootstrap = track.Bootstrap }
 		m.broker.Publish(framebroker.EncodedFrame{
-			CameraID: cameraID, Codec: au.Codec, Timestamp: au.Timestamp,
-			Keyframe: au.Keyframe, Received: au.ReceivedAt, Data: au.Data,
+			CameraID: cameraID, Codec: au.Codec, ClockRate: track.ClockRate,
+			Timestamp: au.Timestamp, Keyframe: au.Keyframe,
+			Received: au.ReceivedAt, Bootstrap: bootstrap, Data: au.Data,
 		})
 		m.updateStatus(cameraID, func(s *CameraStatus) {
 			s.LastFrameAt = au.ReceivedAt
