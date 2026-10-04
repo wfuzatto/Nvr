@@ -21,9 +21,13 @@ type Depacketizer struct {
 	codec      string
 	payloadType uint8
 	timestamp  uint32
-	started    bool
-	keyframe   bool
-	buf        bytes.Buffer
+	started     bool
+	keyframe    bool
+	buf         bytes.Buffer
+	sequenceSet bool
+	lastSequence uint16
+	damaged     bool
+	fuOpen      bool
 }
 
 func NewDepacketizer(codec string, payloadType uint8) (*Depacketizer, error) {
@@ -46,6 +50,27 @@ func (d *Depacketizer) Push(packet RTPPacket) (*AccessUnit, error) {
 		}
 		d.timestamp = packet.Timestamp
 		d.started = true
+		d.sequenceSet = false
+		d.damaged = false
+		d.fuOpen = false
+	}
+	if d.sequenceSet && packet.Sequence != d.lastSequence+1 {
+		d.buf.Reset()
+		d.keyframe = false
+		d.damaged = true
+		d.fuOpen = false
+	}
+	d.lastSequence = packet.Sequence
+	d.sequenceSet = true
+
+	if d.damaged {
+		if packet.Marker {
+			d.damaged = false
+			d.buf.Reset()
+			d.keyframe = false
+			d.fuOpen = false
+		}
+		return nil, nil
 	}
 
 	var err error
@@ -58,6 +83,7 @@ func (d *Depacketizer) Push(packet RTPPacket) (*AccessUnit, error) {
 	if err != nil {
 		d.buf.Reset()
 		d.keyframe = false
+		d.fuOpen = false
 		return nil, err
 	}
 
@@ -72,6 +98,7 @@ func (d *Depacketizer) Push(packet RTPPacket) (*AccessUnit, error) {
 	}
 	d.buf.Reset()
 	d.keyframe = false
+	d.fuOpen = false
 	return &out, nil
 }
 
@@ -99,13 +126,18 @@ func (d *Depacketizer) pushH264(payload []byte) error {
 		if len(payload) < 3 { return errors.New("invalid H264 FU-A packet") }
 		fuHeader := payload[1]
 		start := fuHeader&0x80 != 0
+		end := fuHeader&0x40 != 0
 		reconstructedType := fuHeader & 0x1f
 		if start {
+			d.fuOpen = true
 			d.buf.Write(annexBStartCode)
 			d.buf.WriteByte((payload[0] & 0xe0) | reconstructedType)
 			if reconstructedType == 5 { d.keyframe = true }
+		} else if !d.fuOpen {
+			return errors.New("H264 FU-A continuation without start")
 		}
 		d.buf.Write(payload[2:])
+		if end { d.fuOpen = false }
 		return nil
 	default:
 		return nil
@@ -139,14 +171,19 @@ func (d *Depacketizer) pushH265(payload []byte) error {
 		if len(payload) < 4 { return errors.New("invalid H265 FU packet") }
 		fuHeader := payload[2]
 		start := fuHeader&0x80 != 0
+		end := fuHeader&0x40 != 0
 		reconstructedType := fuHeader & 0x3f
 		if start {
+			d.fuOpen = true
 			d.buf.Write(annexBStartCode)
 			d.buf.WriteByte((payload[0] & 0x81) | (reconstructedType << 1))
 			d.buf.WriteByte(payload[1])
 			if reconstructedType >= 19 && reconstructedType <= 21 { d.keyframe = true }
+		} else if !d.fuOpen {
+			return errors.New("H265 FU continuation without start")
 		}
 		d.buf.Write(payload[3:])
+		if end { d.fuOpen = false }
 		return nil
 	default:
 		return nil
