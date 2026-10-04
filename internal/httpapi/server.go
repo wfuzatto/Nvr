@@ -163,27 +163,28 @@ func (s *Server) handleTestCamera(w http.ResponseWriter, r *http.Request) {
 	camera, err := s.deps.Cameras.Get(r.PathValue("id"))
 	if errors.Is(err, store.ErrNotFound) { writeError(w, http.StatusNotFound, "camera not found"); return }
 	if err != nil { writeError(w, http.StatusInternalServerError, err.Error()); return }
+
 	raw, err := s.deps.SecretBox.Decrypt(camera.RTSPURLCipher)
 	if err != nil { writeError(w, http.StatusInternalServerError, "unable to decrypt camera URL"); return }
-	u, err := url.Parse(raw)
-	if err != nil || u.Hostname() == "" { writeError(w, http.StatusBadRequest, "invalid stored RTSP URL"); return }
-	port := u.Port()
-	if port == "" { port = "554" }
-	host := net.JoinHostPort(u.Hostname(), port)
-	started := time.Now()
-	conn, err := net.DialTimeout("tcp", host, 3*time.Second)
+
+	ctx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
+	defer cancel()
+
+	result, err := rtsp.Probe(ctx, raw)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"reachable": false, "target": camera.RTSPURLRedacted,
-			"error": err.Error(), "latency_ms": time.Since(started).Milliseconds(),
+			"reachable": false,
+			"target": camera.RTSPURLRedacted,
+			"error": err.Error(),
+			"rtsp": result,
 		})
 		return
 	}
-	_ = conn.Close()
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"reachable": true, "target": camera.RTSPURLRedacted,
-		"latency_ms": time.Since(started).Milliseconds(),
-		"note": "TCP connectivity only; RTSP stream validation belongs to the media engine.",
+		"reachable": true,
+		"target": camera.RTSPURLRedacted,
+		"rtsp": result,
 	})
 }
 
