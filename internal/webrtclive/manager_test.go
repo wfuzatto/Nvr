@@ -35,7 +35,7 @@ func TestWebRTCSessionDeliversH264RTP(t *testing.T) {
 	defer cancel()
 
 	broker:=framebroker.New()
-	manager,err:=New(ctx,broker,Config{Enabled:true,UDPMin:51000,UDPMax:51100})
+	manager,err:=New(ctx,broker,Config{Enabled:true,UDPPort:51000})
 	if err!=nil { t.Fatal(err) }
 
 	client,err:=webrtc.NewPeerConnection(webrtc.Configuration{})
@@ -105,7 +105,7 @@ func TestWebRTCSessionDeliversH264RTP(t *testing.T) {
 func TestWebRTCRejectsH265WithoutTranscoding(t *testing.T) {
 	ctx,cancel:=context.WithCancel(context.Background())
 	defer cancel()
-	manager,err:=New(ctx,framebroker.New(),Config{Enabled:true,UDPMin:52000,UDPMax:52100})
+	manager,err:=New(ctx,framebroker.New(),Config{Enabled:true,UDPPort:52000})
 	if err!=nil { t.Fatal(err) }
 	_,err=manager.StartSession(ctx,"cam","H265","v=0")
 	if !errors.Is(err,ErrUnsupportedCodec) {
