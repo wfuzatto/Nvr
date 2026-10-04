@@ -82,9 +82,7 @@ func (m *Manager) Segment(cameraID string, sequence uint64) (Segment,bool) {
 	defer h.mu.RUnlock()
 	for _,segment:=range h.segments {
 		if segment.Sequence==sequence {
-			copySegment:=segment
-			copySegment.Data=append([]byte(nil),segment.Data...)
-			return copySegment,true
+			return segment,true
 		}
 	}
 	return Segment{},false
@@ -93,7 +91,7 @@ func (m *Manager) Segment(cameraID string, sequence uint64) (Segment,bool) {
 func (m *Manager) ensureHub(cameraID string) *cameraHub {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if h:=m.hubs[cameraID]; h!=nil { return h }
+	if h:=m.hubs[cameraID]; h!=nil { h.touch(); return h }
 
 	ctx,cancel:=context.WithCancel(m.ctx)
 	sub:=m.broker.Subscribe(cameraID,128)
@@ -131,7 +129,7 @@ func (m *Manager) runHub(ctx context.Context,h *cameraHub) {
 		h.mu.Lock()
 		segment:=Segment{
 			Sequence:h.nextSeq,ProgramDateTime:start.UTC(),
-			Duration:duration,Data:append([]byte(nil),out.Bytes()...),
+			Duration:duration,Data:out.Bytes(),
 		}
 		h.nextSeq++
 		h.segments=append(h.segments,segment)
