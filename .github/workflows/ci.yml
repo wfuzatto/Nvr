@@ -6,6 +6,8 @@ on:
     paths-ignore:
       - "offline/bin/**"
       - "offline/manifest.json"
+      - "internal/webui/static/hls.min.js"
+      - "internal/webui/static/HLS_LICENSE.txt"
   pull_request:
   workflow_dispatch:
 
@@ -28,6 +30,22 @@ jobs:
         with:
           go-version: "1.23.x"
           cache: false
+
+      - name: Vendor pinned HLS.js for offline playback
+        run: |
+          HLS_VERSION="1.7.3"
+          HLS_ZIP_SHA256="abbda85f3e9b8325fc6b8dbf4fa612ea87144ebad93c2150594e64aad58ec529"
+          rm -rf /tmp/nvr-hls /tmp/nvr-hls.zip
+          curl --fail --location --silent --show-error             "https://github.com/video-dev/hls.js/releases/download/v${HLS_VERSION}/release.zip"             --output /tmp/nvr-hls.zip
+          echo "${HLS_ZIP_SHA256}  /tmp/nvr-hls.zip" | sha256sum -c -
+          mkdir -p /tmp/nvr-hls
+          unzip -q /tmp/nvr-hls.zip -d /tmp/nvr-hls
+          HLS_FILE="$(find /tmp/nvr-hls -type f -name 'hls.min.js' | head -n 1)"
+          LICENSE_FILE="$(find /tmp/nvr-hls -type f \( -name 'LICENSE' -o -name 'LICENSE.txt' \) | head -n 1)"
+          test -n "$HLS_FILE"
+          test -n "$LICENSE_FILE"
+          cp "$HLS_FILE" internal/webui/static/hls.min.js
+          cp "$LICENSE_FILE" internal/webui/static/HLS_LICENSE.txt
 
       - name: Test with dependency resolution disabled
         run: go test ./...
@@ -75,7 +93,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add offline/bin offline/manifest.json
+          git add offline/bin offline/manifest.json internal/webui/static/hls.min.js internal/webui/static/HLS_LICENSE.txt
           if git diff --cached --quiet; then
             echo "Offline binaries already match this source."
             exit 0
@@ -92,4 +110,6 @@ jobs:
             offline/install.sh
             offline/run-portable.sh
             deploy/nvr.service
+            internal/webui/static/hls.min.js
+            internal/webui/static/HLS_LICENSE.txt
           if-no-files-found: error
