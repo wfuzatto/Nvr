@@ -88,6 +88,8 @@ Já disponível:
 - provisionamento automático por profile ONVIF;
 - playback HLS/MPEG-TS sem reencode;
 - live HLS sob demanda, compartilhado por câmera e sem segunda conexão RTSP;
+- WebRTC H.264 de baixa latência via Pion, compartilhado por câmera e sem transcodificação;
+- fallback automático WebRTC → HLS;
 - HLS.js vendorizado e embutido para Chrome/Android;
 - health/readiness;
 - unit tests;
@@ -124,6 +126,6 @@ Os arquivos originais são gravados como elementary streams Annex-B. Playback we
 
 ### ONVIF e playback
 
-Consulte `docs/ONVIF.md` e `docs/PLAYBACK.md`.
+Consulte `docs/ONVIF.md`, `docs/PLAYBACK.md` e `docs/WEBRTC.md`.
 
 O navegador nunca precisa conhecer usuário/senha da câmera. ONVIF resolve as URIs no servidor, e playback usa tokens temporários vinculados à câmera.
