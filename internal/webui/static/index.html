@@ -23,6 +23,7 @@
       </div>
       <div class="toolbar hero-tools">
         <button id="mosaicBtn" class="secondary">Mosaico</button>
+        <button id="platesBtn" class="secondary">Placas</button>
         <button id="systemBtn" class="secondary">Saúde</button>
         <button id="adminBtn" class="secondary" hidden>Administração</button>
         <button id="authBtn" class="secondary">Entrar</button>
@@ -156,6 +157,27 @@
         <button data-ptz="down" class="secondary">▼</button>
       </div>
       <div class="ptz-zoom"><button data-ptz="zoomout" class="secondary">− Zoom</button><button data-ptz="zoomin" class="secondary">+ Zoom</button></div>
+    </section>
+  </dialog>
+
+  <dialog id="platesDialog" class="wide-dialog">
+    <div class="dialog-head"><div><div class="eyebrow">LPR / OCR</div><h2>Pesquisa de placas</h2></div><button type="button" class="icon" id="closePlates">×</button></div>
+    <form id="plateSearchForm" class="plate-search-form">
+      <input name="plate" maxlength="12" placeholder="ABC1D23 ou trecho">
+      <select name="camera_id"><option value="">Todas as câmeras</option></select>
+      <label class="check"><input name="alert_only" type="checkbox"> somente alertas</label>
+      <button type="submit">Pesquisar</button>
+    </form>
+    <div id="plateSearchInfo" class="muted small"></div>
+    <div id="plateEvents" class="plate-events"></div>
+    <section id="hotlistSection" hidden>
+      <div class="section-head"><h3>Hotlist</h3><button id="refreshHotlist" class="secondary">Atualizar</button></div>
+      <form id="hotlistForm" class="admin-form hotlist-form">
+        <input name="plate" maxlength="10" placeholder="ABC1D23" required>
+        <input name="label" placeholder="Motivo / observação">
+        <button type="submit">Adicionar</button>
+      </form>
+      <div id="hotlistList" class="admin-list"></div>
     </section>
   </dialog>
 
