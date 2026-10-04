@@ -21,6 +21,7 @@ func TestParseH264VideoTrack(t *testing.T) {
 		t.Fatalf("unexpected track: %+v", track)
 	}
 	if !strings.Contains(track.Control, "trackID=1") { t.Fatalf("control=%q", track.Control) }
+	if track.PlayControl != "rtsp://10.0.0.1/live/" { t.Fatalf("play control=%q", track.PlayControl) }
 	if len(track.Bootstrap) != 2 { t.Fatalf("bootstrap=%d", len(track.Bootstrap)) }
 }
 
@@ -38,5 +39,14 @@ func TestParseInterleavedRTPChannel(t *testing.T) {
 
 	if _, err := parseInterleavedRTPChannel("RTP/AVP;unicast;client_port=10000-10001"); err == nil {
 		t.Fatal("expected UDP transport rejection")
+	}
+}
+
+func TestParseAggregateControl(t *testing.T) {
+	sdp := "v=0\r\na=control:session\r\nm=video 0 RTP/AVP 96\r\na=rtpmap:96 H264/90000\r\na=control:trackID=1\r\n"
+	track, err := parseVideoTrack(sdp, "rtsp://camera/base/")
+	if err != nil { t.Fatal(err) }
+	if track.PlayControl != "rtsp://camera/base/session" {
+		t.Fatalf("play control=%q", track.PlayControl)
 	}
 }
