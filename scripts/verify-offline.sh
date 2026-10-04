@@ -1,17 +1,19 @@
 #!/usr/bin/env sh
 set -eu
 
-echo "[offline] running tests with network package resolution disabled..."
-GOPROXY=off GOSUMDB=off GOFLAGS="-mod=mod" go test ./...
+echo "[offline] verifying vendored Go dependencies..."
+test -f vendor/modules.txt
+grep -q "github.com/pion/webrtc/v4 v4.2.22" vendor/modules.txt
 
-echo "[offline] checking module graph..."
-modules="$(GOPROXY=off GOSUMDB=off go list -m all)"
-count="$(printf '%s\n' "$modules" | wc -l | tr -d ' ')"
-if [ "$count" != "1" ]; then
-  echo "ERROR: external Go modules detected:"
-  printf '%s\n' "$modules"
-  exit 1
-fi
+echo "[offline] running tests with all module downloads disabled..."
+GOPROXY=off GOSUMDB=off GOFLAGS="-mod=vendor" go test ./...
+
+echo "[offline] checking vendored module graph..."
+modules="$(GOPROXY=off GOSUMDB=off GOFLAGS="-mod=vendor" go list -mod=vendor -m all)"
+printf '%s
+' "$modules" | grep -q '^github.com/wfuzatto/Nvr'
+printf '%s
+' "$modules" | grep -q '^github.com/pion/webrtc/v4 v4.2.22'
 
 echo "[offline] checking embedded web assets..."
 if grep -R -nE '(src|href)=["'"'"']https?://' internal/webui/static 2>/dev/null; then
@@ -25,4 +27,4 @@ if grep -R -nE '(curl|wget|docker[[:space:]]+pull|go[[:space:]]+get|npm[[:space:
   exit 1
 fi
 
-echo "[offline] OK: core has no online build/runtime dependency."
+echo "[offline] OK: runtime and build use only vendored/embedded dependencies."
