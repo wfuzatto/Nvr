@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/wfuzatto/Nvr/internal/audit"
 	"github.com/wfuzatto/Nvr/internal/config"
 	"github.com/wfuzatto/Nvr/internal/framebroker"
 	"github.com/wfuzatto/Nvr/internal/httpapi"
@@ -46,6 +47,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("camera store: %v", err)
 	}
+	authManager, err := security.OpenAuthManager(cfg.UsersFile, adminToken)
+	if err != nil {
+		log.Fatalf("auth manager: %v", err)
+	}
+	auditLog, err := audit.Open(cfg.AuditFile)
+	if err != nil {
+		log.Fatalf("audit log: %v", err)
+	}
 
 	appCtx, appCancel := context.WithCancel(context.Background())
 	defer appCancel()
@@ -69,7 +78,7 @@ func main() {
 
 	api := httpapi.New(httpapi.Dependencies{
 		Config: cfg, Version: version, AdminToken: adminToken,
-		SecretBox: box, Cameras: cameraStore, Media: mediaManager, Live: liveManager, WebRTC: webRTCManager,
+		SecretBox: box, Auth: authManager, Audit: auditLog, Cameras: cameraStore, Media: mediaManager, Live: liveManager, WebRTC: webRTCManager,
 	})
 
 	server := &http.Server{
