@@ -1,0 +1,47 @@
+name: nvr-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-core:
+    runs-on: ubuntu-latest
+    env:
+      GOPROXY: "off"
+      GOSUMDB: "off"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+          cache: false
+      - name: Test with dependency resolution disabled
+        run: go test ./...
+      - name: Build Linux AMD64
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w" -o dist/nvr-linux-amd64 ./cmd/nvr
+          sha256sum dist/nvr-linux-amd64 > dist/nvr-linux-amd64.sha256
+      - name: Build Linux ARM64
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          go build -trimpath -ldflags="-s -w" -o dist/nvr-linux-arm64 ./cmd/nvr
+          sha256sum dist/nvr-linux-arm64 > dist/nvr-linux-arm64.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nvr-offline-core
+          path: dist/
+          if-no-files-found: error
