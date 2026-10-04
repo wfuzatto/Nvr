@@ -77,6 +77,13 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /api/v1/media/broker", s.auth(http.HandlerFunc(s.handleBrokerStats)))
 	s.mux.Handle("POST /api/v1/media/retention/run", s.auth(http.HandlerFunc(s.handleRetentionRun)))
 	s.mux.Handle("POST /api/v1/media/protect", s.auth(http.HandlerFunc(s.handleProtectSegment)))
+	s.mux.Handle("GET /api/v1/onvif/discover", s.auth(http.HandlerFunc(s.handleONVIFDiscover)))
+	s.mux.Handle("POST /api/v1/onvif/inspect", s.auth(http.HandlerFunc(s.handleONVIFInspect)))
+	s.mux.Handle("POST /api/v1/cameras/from-onvif", s.auth(http.HandlerFunc(s.handleCreateCameraFromONVIF)))
+	s.mux.Handle("POST /api/v1/cameras/{id}/onvif/sync", s.auth(http.HandlerFunc(s.handleONVIFSync)))
+	s.mux.Handle("GET /api/v1/cameras/{id}/ptz/status", s.auth(http.HandlerFunc(s.handlePTZStatus)))
+	s.mux.Handle("POST /api/v1/cameras/{id}/ptz/move", s.auth(http.HandlerFunc(s.handlePTZMove)))
+	s.mux.Handle("POST /api/v1/cameras/{id}/ptz/stop", s.auth(http.HandlerFunc(s.handlePTZStop)))
 	s.mux.Handle("/", webui.Handler())
 }
 
