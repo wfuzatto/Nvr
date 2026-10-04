@@ -86,7 +86,8 @@ async function loadCameras() {
         "<td>" + escapeHTML(c.city || "—") + "<div class=\"muted small\">" + escapeHTML(c.site || "") + "</div></td>" +
         "<td>" + origin + "<div class=\"muted small source-url\">" + escapeHTML(c.rtsp_url) + "</div></td>" +
         "<td>" + mediaBadge(statuses[c.id], c.enabled) + "</td>" +
-        "<td class=\"row-actions\"><button class=\"play\" data-id=\"" + c.id + "\">Playback</button> " +
+        "<td class=\"row-actions\"><button class=\"live\" data-id=\"" + c.id + "\">Ao vivo</button> " +
+        "<button class=\"play\" data-id=\"" + c.id + "\">Playback</button> " +
         "<button class=\"secondary test\" data-id=\"" + c.id + "\">Testar</button> " +
         snapButton + syncButton +
         "<button class=\"danger del\" data-id=\"" + c.id + "\">Excluir</button></td></tr>";
@@ -133,6 +134,62 @@ function destroyPlayback() {
   video.load();
 }
 
+function attachHLS(playlist, label, isLive) {
+  const video = byId("playerVideo");
+  if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = playlist;
+    byId("playerStatus").textContent = label + " · HLS nativo";
+    video.play().catch(function () {});
+    return true;
+  }
+
+  if (window.Hls && window.Hls.isSupported()) {
+    state.hls = new window.Hls({
+      enableWorker: true,
+      lowLatencyMode: false,
+      backBufferLength: isLive ? 20 : 60,
+      liveSyncDurationCount: isLive ? 3 : undefined,
+      liveMaxLatencyDurationCount: isLive ? 6 : undefined
+    });
+    state.hls.loadSource(playlist);
+    state.hls.attachMedia(video);
+    state.hls.on(window.Hls.Events.MANIFEST_PARSED, function () {
+      byId("playerStatus").textContent = label;
+      video.play().catch(function () {});
+    });
+    state.hls.on(window.Hls.Events.ERROR, function (_event, data) {
+      if (data && data.fatal) {
+        byId("playerStatus").textContent = "Falha HLS: " + (data.details || data.type || "erro");
+      }
+    });
+    return true;
+  }
+
+  byId("playerStatus").textContent = "Este navegador não possui HLS/MSE compatível.";
+  return false;
+}
+
+async function showLive(id) {
+  const camera = state.cameras[id];
+  if (!camera) return;
+  state.playerCamera = id;
+  byId("playerTitle").textContent = camera.name + " — Ao vivo";
+  byId("playerStatus").textContent = "Conectando ao fluxo gravado...";
+  byId("ptzPanel").hidden = !camera.onvif_ptz;
+  byId("playerDialog").showModal();
+  destroyPlayback();
+
+  try {
+    const session = await api("/api/v1/cameras/" + id + "/live/session", {
+      method:"POST",
+      body:JSON.stringify({ttl_seconds:900})
+    });
+    attachHLS(session.playlist_url, "Ao vivo HLS local", true);
+  } catch (err) {
+    byId("playerStatus").textContent = err.message;
+  }
+}
+
 async function showPlayback(id) {
   const camera = state.cameras[id];
   if (!camera) return;
@@ -155,37 +212,7 @@ async function showPlayback(id) {
       method: "POST",
       body: JSON.stringify({limit: 120, ttl_seconds: 900})
     });
-    const video = byId("playerVideo");
-    const playlist = session.playlist_url;
-
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = playlist;
-      byId("playerStatus").textContent = "HLS nativo";
-      video.play().catch(function () {});
-      return;
-    }
-
-    if (window.Hls && window.Hls.isSupported()) {
-      state.hls = new window.Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-        backBufferLength: 60
-      });
-      state.hls.loadSource(playlist);
-      state.hls.attachMedia(video);
-      state.hls.on(window.Hls.Events.MANIFEST_PARSED, function () {
-        byId("playerStatus").textContent = "Playback HLS local";
-        video.play().catch(function () {});
-      });
-      state.hls.on(window.Hls.Events.ERROR, function (_event, data) {
-        if (data && data.fatal) {
-          byId("playerStatus").textContent = "Falha no playback: " + (data.details || data.type || "erro HLS");
-        }
-      });
-      return;
-    }
-
-    byId("playerStatus").textContent = "Este navegador não possui HLS/MSE compatível.";
+    attachHLS(session.playlist_url, "Playback HLS local", false);
   } catch (err) {
     byId("playerStatus").textContent = err.message;
   }
@@ -391,6 +418,10 @@ byId("cameraForm").onsubmit = async function (e) {
 byId("cameraRows").onclick = async function (e) {
   const id = e.target.dataset.id;
   if (!id) return;
+
+  if (e.target.classList.contains("live")) {
+    showLive(id);
+  }
 
   if (e.target.classList.contains("play")) {
     showPlayback(id);
