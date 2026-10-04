@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/wfuzatto/Nvr/internal/config"
+	"github.com/wfuzatto/Nvr/internal/live"
 	"github.com/wfuzatto/Nvr/internal/media"
 	"github.com/wfuzatto/Nvr/internal/model"
 	"github.com/wfuzatto/Nvr/internal/rtsp"
@@ -31,6 +32,7 @@ type Dependencies struct {
 	SecretBox *security.SecretBox
 	Cameras store.CameraStore
 	Media *media.Manager
+	Live *live.Manager
 }
 
 type Server struct {
@@ -84,6 +86,9 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /api/v1/cameras/{id}/ptz/status", s.auth(http.HandlerFunc(s.handlePTZStatus)))
 	s.mux.Handle("POST /api/v1/cameras/{id}/ptz/move", s.auth(http.HandlerFunc(s.handlePTZMove)))
 	s.mux.Handle("POST /api/v1/cameras/{id}/ptz/stop", s.auth(http.HandlerFunc(s.handlePTZStop)))
+	s.mux.Handle("POST /api/v1/cameras/{id}/live/session", s.auth(http.HandlerFunc(s.handleLiveSession)))
+	s.mux.HandleFunc("GET /api/v1/live/{id}/index.m3u8", s.handleLivePlaylist)
+	s.mux.HandleFunc("GET /api/v1/live/{id}/segment.ts", s.handleLiveSegment)
 	s.mux.Handle("POST /api/v1/cameras/{id}/playback/session", s.auth(http.HandlerFunc(s.handlePlaybackSession)))
 	s.mux.HandleFunc("GET /api/v1/playback/{id}/index.m3u8", s.handlePlaybackPlaylist)
 	s.mux.HandleFunc("GET /api/v1/playback/{id}/segment.ts", s.handlePlaybackSegment)
