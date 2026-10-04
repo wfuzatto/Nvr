@@ -54,13 +54,17 @@ func main() {
 	mediaManager := media.NewManager(cfg, cameraStore, box, broker)
 	mediaManager.Start(appCtx)
 	liveManager := live.NewManager(appCtx, broker)
-	webRTCManager, err := webrtclive.New(appCtx, broker, webrtclive.Config{
-		Enabled: cfg.WebRTCEnabled,
-		UDPPort: uint16(cfg.WebRTCUDPPort),
-		PublicIP: cfg.WebRTCPublicIP,
-	})
-	if err != nil {
-		log.Fatalf("webrtc: %v", err)
+	var webRTCManager *webrtclive.Manager
+	if cfg.WebRTCEnabled {
+		webRTCManager, err = webrtclive.New(appCtx, broker, webrtclive.Config{
+			Enabled: true,
+			UDPPort: uint16(cfg.WebRTCUDPPort),
+			PublicIP: cfg.WebRTCPublicIP,
+		})
+		if err != nil {
+			log.Printf("WebRTC unavailable: %v; live HLS fallback remains enabled", err)
+			webRTCManager = nil
+		}
 	}
 
 	api := httpapi.New(httpapi.Dependencies{
@@ -80,10 +84,10 @@ func main() {
 	go func() {
 		log.Printf("NVR %s listening on http://%s", version, cfg.ListenAddress)
 		log.Printf("media engine enabled: segment=%s retention=%dd max_bytes=%d", cfg.SegmentDuration, cfg.RetentionDays, cfg.StorageMaxBytes)
-		if cfg.WebRTCEnabled {
+		if webRTCManager != nil {
 			log.Printf("WebRTC enabled: UDP %d (ICE mux) public_ip_configured=%t", cfg.WebRTCUDPPort, cfg.WebRTCPublicIP != "")
 		} else {
-			log.Printf("WebRTC disabled; live HLS remains available")
+			log.Printf("WebRTC disabled/unavailable; live HLS remains available")
 		}
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
