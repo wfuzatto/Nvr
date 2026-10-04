@@ -8,6 +8,8 @@ on:
       - "offline/manifest.json"
       - "internal/webui/static/hls.min.js"
       - "internal/webui/static/HLS_LICENSE.txt"
+      - "vendor/**"
+      - "go.sum"
   pull_request:
   workflow_dispatch:
 
@@ -28,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23.x"
+          go-version: "1.24.x"
           cache: false
 
       - name: Vendor pinned HLS.js for offline playback
@@ -44,20 +46,36 @@ jobs:
           test -n "$HLS_FILE"
           cp "$HLS_FILE" internal/webui/static/hls.min.js
 
+      - name: Vendor pinned Go modules
+        env:
+          GOPROXY: "https://proxy.golang.org,direct"
+          GOSUMDB: "sum.golang.org"
+          GOFLAGS: ""
+        run: |
+          go mod tidy
+          go mod vendor
+          test -f vendor/modules.txt
+          grep -q "github.com/pion/webrtc/v4 v4.2.22" vendor/modules.txt
+
       - name: Validate embedded JavaScript
         run: |
           node --check internal/webui/static/app.js
           node --check internal/webui/static/hls.min.js
 
       - name: Test with dependency resolution disabled
+        env:
+          GOFLAGS: "-mod=vendor"
         run: go test ./...
 
       - name: Enforce offline runtime policy
+        env:
+          GOFLAGS: "-mod=vendor"
         run: sh scripts/verify-offline.sh
 
       - name: Build offline Linux binaries
         env:
           CGO_ENABLED: "0"
+          GOFLAGS: "-mod=vendor"
         run: |
           mkdir -p offline/bin/linux-amd64 offline/bin/linux-arm64
 
@@ -98,7 +116,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add offline/bin offline/manifest.json internal/webui/static/hls.min.js internal/webui/static/HLS_LICENSE.txt
+          git add go.mod go.sum vendor offline/bin offline/manifest.json internal/webui/static/hls.min.js internal/webui/static/HLS_LICENSE.txt
           if git diff --cached --quiet; then
             echo "Offline binaries already match this source."
             exit 0
