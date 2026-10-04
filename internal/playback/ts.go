@@ -148,24 +148,21 @@ func (m *tsMuxer) writePES(es []byte,pts uint64) error {
 
 		if first {
 			packet[3]=0x30|cc
-			packet[4]=7
+			adaptLen:=7
+			if len(pes)<176 {
+				adaptLen=183-len(pes)
+				if adaptLen<7 { adaptLen=7 }
+			}
+			packet[4]=byte(adaptLen)
 			packet[5]=0x10
 			writePCR(packet[6:12],pts)
-			capacity:=188-12
+			for i:=12;i<5+adaptLen;i++ { packet[i]=0xff }
+			start:=5+adaptLen
+			capacity:=188-start
 			n:=minInt(capacity,len(pes))
-			copy(packet[12:12+n],pes[:n])
+			copy(packet[start:start+n],pes[:n])
 			pes=pes[n:]
 			first=false
-			if n<capacity {
-				// stuffing must live in adaptation field, rebuild this packet.
-				stuff:=capacity-n
-				packet[4]=byte(7+stuff)
-				for i:=12;i<12+stuff;i++ { packet[i]=0xff }
-				copy(packet[12+stuff:12+stuff+n],pes[:0])
-				// The previous copy remains only when no stuffing is required.
-				// Recreate payload from original chunk below.
-				return errors.New("unexpected short first PES packet")
-			}
 			if _,err:=m.w.Write(packet); err!=nil { return err }
 			continue
 		}
