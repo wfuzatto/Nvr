@@ -14,10 +14,10 @@ func TestH264SingleNAL(t *testing.T) {
 
 func TestH264FUA(t *testing.T) {
 	d, _ := NewDepacketizer("H264", 96)
-	if au, err := d.Push(RTPPacket{PayloadType:96, Timestamp:1, Marker:false, Payload:[]byte{0x7c,0x85,1,2}}); err != nil || au != nil {
+	if au, err := d.Push(RTPPacket{PayloadType:96, Sequence:1, Timestamp:1, Marker:false, Payload:[]byte{0x7c,0x85,1,2}}); err != nil || au != nil {
 		t.Fatalf("start err=%v au=%v", err, au)
 	}
-	au, err := d.Push(RTPPacket{PayloadType:96, Timestamp:1, Marker:true, Payload:[]byte{0x7c,0x45,3,4}})
+	au, err := d.Push(RTPPacket{PayloadType:96, Sequence:2, Timestamp:1, Marker:true, Payload:[]byte{0x7c,0x45,3,4}})
 	if err != nil { t.Fatal(err) }
 	if au == nil || !au.Keyframe { t.Fatalf("unexpected access unit: %+v", au) }
 }
