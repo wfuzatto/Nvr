@@ -11,7 +11,7 @@ import (
 
 func TestRecorderRotatesOnKeyframe(t *testing.T) {
 	root := t.TempDir()
-	r, err := NewRecorder(root, "cam-1", "H264", 5*time.Second, [][]byte{{0x67,1},{0x68,2}})
+	r, err := NewRecorder(root, "cam-1", "H264", 90000, 5*time.Second, [][]byte{{0x67,1},{0x68,2}})
 	if err != nil { t.Fatal(err) }
 
 	start := time.Now().UTC()
