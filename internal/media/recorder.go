@@ -2,10 +2,12 @@ package media
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"hash"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,12 +32,18 @@ type Segment struct {
 	Partial    bool      `json:"partial,omitempty"`
 }
 
+const (
+	FrameIndexHeaderSize = 8
+	FrameIndexRecordSize = 20
+)
+
+var frameIndexMagic = [4]byte{'N','V','F','I'}
+
 type FrameIndexEntry struct {
-	Offset    int64     `json:"offset"`
-	Length    int       `json:"length"`
-	Timestamp uint32    `json:"rtp_timestamp"`
-	Keyframe  bool      `json:"keyframe"`
-	Received  time.Time `json:"received_at"`
+	Offset    int64
+	Length    int
+	Timestamp uint32
+	Keyframe  bool
 }
 
 type Recorder struct {
@@ -133,7 +141,7 @@ func (r *Recorder) openSegment(start time.Time) error {
 	name := fmt.Sprintf("%s_%d%s", start.UTC().Format("15-04-05.000"), start.UnixNano(), ext)
 	finalPath := filepath.Join(dir, name)
 	tmpPath := finalPath + ".partial"
-	frameFinalPath := finalPath + ".frames.jsonl"
+	frameFinalPath := finalPath + ".frames.idx"
 	frameTmpPath := frameFinalPath + ".partial"
 
 	f, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o640)
@@ -148,6 +156,11 @@ func (r *Recorder) openSegment(start time.Time) error {
 	r.finalPath = finalPath
 	r.frameTmpPath = frameTmpPath
 	r.frameFinalPath = frameFinalPath
+
+	if err := writeFrameIndexHeader(ff); err != nil {
+		_ = r.abortCurrent()
+		return err
+	}
 
 	relative, _ := filepath.Rel(r.root, finalPath)
 	frameRelative, _ := filepath.Rel(r.root, frameFinalPath)
@@ -201,11 +214,24 @@ func (r *Recorder) writeBytes(payload []byte) (int,error) {
 	return n,err
 }
 
+func writeFrameIndexHeader(w io.Writer) error {
+	header:=make([]byte,FrameIndexHeaderSize)
+	copy(header[:4],frameIndexMagic[:])
+	header[4]=1
+	header[5]=FrameIndexRecordSize
+	_,err:=w.Write(header)
+	return err
+}
+
 func (r *Recorder) writeFrameIndex(entry FrameIndexEntry) error {
-	payload,err:=json.Marshal(entry)
-	if err!=nil { return err }
-	if _,err:=r.frameFile.Write(append(payload,'\n')); err!=nil { return err }
-	return nil
+	if entry.Offset<0 || entry.Length<=0 { return fmt.Errorf("invalid frame index entry") }
+	record:=make([]byte,FrameIndexRecordSize)
+	binary.BigEndian.PutUint64(record[0:8],uint64(entry.Offset))
+	binary.BigEndian.PutUint32(record[8:12],uint32(entry.Length))
+	binary.BigEndian.PutUint32(record[12:16],entry.Timestamp)
+	if entry.Keyframe { record[16]=1 }
+	_,err:=r.frameFile.Write(record)
+	return err
 }
 
 func (r *Recorder) abortCurrent() error {
