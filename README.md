@@ -134,3 +134,12 @@ Os arquivos originais são gravados como elementary streams Annex-B. Playback we
 Consulte `docs/ONVIF.md`, `docs/PLAYBACK.md` e `docs/WEBRTC.md`.
 
 O navegador nunca precisa conhecer usuário/senha da câmera. ONVIF resolve as URIs no servidor, e playback usa tokens temporários vinculados à câmera.
+
+
+### Plate OCR integrado
+
+O pacote offline inclui o binário `plate-ocr` pinado ao source commit `6be42f0a20664b99f72613286fa5d98be502113b`.
+
+O plugin recebe apenas JPEG normalizado pela API local do NVR, nunca RTSP ou credenciais de câmera. Eventos e evidências são enviados de volta por token de serviço separado. A interface oferece pesquisa exata/parcial de placas, evidência fotográfica e hotlist com alertas.
+
+O provider `classic-offline` é o baseline funcional/fallback sem dependências nativas. Um provider neural continua sendo o próximo passo para elevar precisão em chuva, ângulo, blur, baixa iluminação e placas pequenas.

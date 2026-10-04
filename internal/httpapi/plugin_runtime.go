@@ -28,6 +28,7 @@ type PluginDependencies struct {
 	Token       string
 	Events      store.EventStore
 	EvidenceDir string
+	Hotlist     store.HotlistStore
 }
 
 func AttachPluginRoutes(s *Server, deps PluginDependencies) {
@@ -35,8 +36,13 @@ func AttachPluginRoutes(s *Server, deps PluginDependencies) {
 	s.mux.Handle("GET /api/v1/plugin/v1/cameras/{id}/frame", pluginAuth(deps.Token, http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handlePluginFrame(s,w,r) })))
 	s.mux.Handle("POST /api/v1/plugin/v1/evidence", pluginAuth(deps.Token, http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handlePluginEvidence(deps,w,r) })))
 	s.mux.Handle("POST /api/v1/plugin/v1/events", pluginAuth(deps.Token, http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handlePluginEvent(s,deps,w,r) })))
-	s.mux.Handle("GET /api/v1/events/plates", s.require("evidence", http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handlePlateSearch(deps,w,r) })))
-	s.mux.Handle("GET /api/v1/events/{id}/evidence", s.require("evidence", http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handleEvidenceGet(deps,w,r) })))
+	s.mux.Handle("GET /api/v1/plugins/plate-ocr/status", s.auth(http.HandlerFunc(s.handlePluginStatus)))
+	s.mux.Handle("GET /api/v1/events/plates", s.auth(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handlePlateSearch(deps,w,r) })))
+	s.mux.Handle("GET /api/v1/events/{id}/evidence", s.auth(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handleEvidenceGet(deps,w,r) })))
+	s.mux.Handle("GET /api/v1/hotlist", s.require("evidence", http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handleHotlistList(deps,w,r) })))
+	s.mux.Handle("POST /api/v1/hotlist", s.require("evidence", s.audited("hotlist.create","hotlist",http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handleHotlistPut(deps,w,r) }))))
+	s.mux.Handle("PUT /api/v1/hotlist/{id}", s.require("evidence", s.audited("hotlist.update","hotlist",http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handleHotlistPut(deps,w,r) }))))
+	s.mux.Handle("DELETE /api/v1/hotlist/{id}", s.require("evidence", s.audited("hotlist.delete","hotlist",http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ handleHotlistDelete(deps,w,r) }))))
 }
 
 func pluginAuth(token string,next http.Handler)http.Handler{
@@ -159,6 +165,13 @@ func handlePluginEvent(s *Server,deps PluginDependencies,w http.ResponseWriter,r
 		PluginID:in.PluginID,PluginVersion:in.PluginVersion,Confidence:in.Confidence,
 		SnapshotRef:in.SnapshotRef,ClipRef:in.ClipRef,Attributes:cleanAttrs,DedupeKey:in.DedupeKey,
 	}
+	if deps.Hotlist!=nil {
+		if hit,ok:=deps.Hotlist.Match(plate.NormalizedText);ok {
+			ev.Alert=true
+			ev.AlertLabel=hit.Label
+			ev.HotlistID=hit.ID
+		}
+	}
 	created,err:=deps.Events.Put(ev)
 	if err!=nil{writeError(w,http.StatusInternalServerError,err.Error());return}
 	status:=http.StatusCreated;if !created{status=http.StatusOK}
@@ -173,7 +186,12 @@ func handlePlateSearch(deps PluginDependencies,w http.ResponseWriter,r *http.Req
 	if raw:=r.URL.Query().Get("limit");raw!=""{
 		limit,err=strconv.Atoi(raw);if err!=nil||limit<1||limit>5000{writeError(w,http.StatusBadRequest,"limit must be between 1 and 5000");return}
 	}
-	items,err:=deps.Events.Search(store.EventQuery{Plate:r.URL.Query().Get("plate"),CameraID:r.URL.Query().Get("camera_id"),From:from,To:to,Limit:limit})
+	alertOnly:=false
+	if raw:=strings.TrimSpace(r.URL.Query().Get("alert_only"));raw!="" {
+		alertOnly,err=strconv.ParseBool(raw)
+		if err!=nil{writeError(w,http.StatusBadRequest,"alert_only must be boolean");return}
+	}
+	items,err:=deps.Events.Search(store.EventQuery{Plate:r.URL.Query().Get("plate"),CameraID:r.URL.Query().Get("camera_id"),From:from,To:to,Limit:limit,AlertOnly:alertOnly})
 	if err!=nil{writeError(w,http.StatusInternalServerError,err.Error());return}
 	writeJSON(w,http.StatusOK,map[string]any{"items":items,"count":len(items),"total_events":deps.Events.Count()})
 }
@@ -192,6 +210,40 @@ func handleEvidenceGet(deps PluginDependencies,w http.ResponseWriter,r *http.Req
 	if err!=nil{writeError(w,http.StatusInternalServerError,err.Error());return}
 	w.Header().Set("Content-Type","image/jpeg");w.Header().Set("Cache-Control","private, no-store")
 	w.Header().Set("Content-Length",strconv.Itoa(len(body)));w.WriteHeader(http.StatusOK);_,_=w.Write(body)
+}
+
+type hotlistInput struct {
+	Plate string `json:"plate"`
+	Label string `json:"label"`
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
+func handleHotlistList(deps PluginDependencies,w http.ResponseWriter,_ *http.Request){
+	if deps.Hotlist==nil{writeError(w,http.StatusServiceUnavailable,"hotlist unavailable");return}
+	items:=deps.Hotlist.List()
+	writeJSON(w,http.StatusOK,map[string]any{"items":items,"count":len(items)})
+}
+
+func handleHotlistPut(deps PluginDependencies,w http.ResponseWriter,r *http.Request){
+	if deps.Hotlist==nil{writeError(w,http.StatusServiceUnavailable,"hotlist unavailable");return}
+	var in hotlistInput
+	if err:=decodeJSON(r,&in);err!=nil{writeError(w,http.StatusBadRequest,err.Error());return}
+	enabled:=true
+	if in.Enabled!=nil{enabled=*in.Enabled}
+	entry:=model.HotlistEntry{ID:r.PathValue("id"),Plate:in.Plate,Label:in.Label,Enabled:enabled}
+	saved,err:=deps.Hotlist.Put(entry)
+	if err!=nil{writeError(w,http.StatusBadRequest,err.Error());return}
+	status:=http.StatusCreated
+	if r.PathValue("id")!=""{status=http.StatusOK}
+	writeJSON(w,status,saved)
+}
+
+func handleHotlistDelete(deps PluginDependencies,w http.ResponseWriter,r *http.Request){
+	if deps.Hotlist==nil{writeError(w,http.StatusServiceUnavailable,"hotlist unavailable");return}
+	err:=deps.Hotlist.Delete(r.PathValue("id"))
+	if errors.Is(err,store.ErrNotFound){writeError(w,http.StatusNotFound,"hotlist entry not found");return}
+	if err!=nil{writeError(w,http.StatusInternalServerError,err.Error());return}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func validID(v string)bool{

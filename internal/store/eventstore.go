@@ -21,6 +21,7 @@ type EventQuery struct {
 	From time.Time
 	To time.Time
 	Limit int
+	AlertOnly bool
 }
 
 type EventStore interface {
@@ -73,6 +74,7 @@ func (s *FileEventStore) Search(q EventQuery)([]model.EventEnvelope,error){
 	for i:=len(s.ordered)-1;i>=0&&len(out)<limit;i--{
 		ev:=s.ordered[i]
 		if q.CameraID!=""&&ev.CameraID!=q.CameraID{continue}
+		if q.AlertOnly&&!ev.Alert{continue}
 		if !q.From.IsZero()&&ev.ObservedAt.Before(q.From){continue}
 		if !q.To.IsZero()&&ev.ObservedAt.After(q.To){continue}
 		if needle!=""{

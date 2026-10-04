@@ -23,6 +23,9 @@ type EventEnvelope struct {
 	ClipRef       string          `json:"clip_ref,omitempty"`
 	Attributes    json.RawMessage `json:"attributes"`
 	DedupeKey     string          `json:"dedupe_key,omitempty"`
+	Alert         bool            `json:"alert,omitempty"`
+	AlertLabel    string          `json:"alert_label,omitempty"`
+	HotlistID     string          `json:"hotlist_id,omitempty"`
 }
 
 type PlateAttributes struct {

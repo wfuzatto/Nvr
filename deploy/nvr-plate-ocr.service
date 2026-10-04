@@ -1,0 +1,23 @@
+[Unit]
+Description=NVR Plate OCR Plugin
+After=nvr.service network.target
+Requires=nvr.service
+
+[Service]
+Type=simple
+User=nvr
+Group=nvr
+WorkingDirectory=/opt/nvr/plugins/plate-ocr
+ExecStart=/opt/nvr/plugins/plate-ocr/plate-ocr serve -config /etc/nvr/plugins/plate-ocr.json
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=-/var/lib/nvr/plugin.token
+ReadWritePaths=/var/lib/plate-ocr
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

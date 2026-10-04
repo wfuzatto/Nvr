@@ -15,6 +15,7 @@ type Config struct {
 	StorageDir         string
 	CameraDBFile       string
 	EventDBFile        string
+	HotlistFile        string
 	EvidenceDir        string
 	MasterKeyFile      string
 	AdminTokenFile     string
@@ -74,6 +75,7 @@ func Load() (Config, error) {
 		StorageDir:         storageDir,
 		CameraDBFile:       filepath.Join(dataDir, "cameras.json"),
 		EventDBFile:        filepath.Join(dataDir, "events", "events.jsonl"),
+		HotlistFile:        filepath.Join(dataDir, "events", "hotlist.json"),
 		EvidenceDir:        filepath.Join(storageDir, "analytics", "plate"),
 		MasterKeyFile:      filepath.Join(dataDir, "master.key"),
 		AdminTokenFile:     filepath.Join(dataDir, "admin.token"),

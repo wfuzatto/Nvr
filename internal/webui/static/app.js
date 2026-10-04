@@ -474,9 +474,15 @@ async function renderMosaic(size) {
 }
 
 async function loadSystem() {
-  const data = await api("/api/v1/system/status");
+  const results = await Promise.all([
+    api("/api/v1/system/status"),
+    api("/api/v1/plugins/plate-ocr/status").catch(function(err){return {state:"offline",error:err.message};})
+  ]);
+  const data = results[0];
+  const plate = results[1] || {};
   byId("systemCards").innerHTML = [
     ["Uptime",Math.floor(data.uptime_seconds/3600)+" h"],
+    ["Plate OCR",plate.status || plate.state || "offline"],
     ["RAM Go",bytesHuman(data.memory_alloc_bytes)],
     ["Disco livre",bytesHuman(data.disk_free_bytes)],
     ["Uso do disco",Number(data.disk_used_percent||0).toFixed(1)+"%"],
@@ -485,7 +491,7 @@ async function loadSystem() {
     ["Reconnects",data.reconnects],
     ["Goroutines",data.goroutines]
   ].map(function(x){return '<article><span>'+escapeHTML(x[0])+'</span><strong>'+escapeHTML(x[1])+'</strong></article>';}).join("");
-  byId("systemRaw").textContent = JSON.stringify(data,null,2);
+  byId("systemRaw").textContent = JSON.stringify({nvr:data,plate_ocr:plate},null,2);
 }
 
 async function showSystem() {
@@ -585,6 +591,76 @@ async function downloadExport(id) {
   setTimeout(function(){URL.revokeObjectURL(url);},1000);
 }
 
+function populatePlateCameraFilter() {
+  const select=byId("plateSearchForm").querySelector('select[name="camera_id"]');
+  const current=select.value;
+  select.innerHTML='<option value="">Todas as câmeras</option>'+Object.values(state.cameras).map(function(cam){
+    return '<option value="'+escapeHTML(cam.id)+'">'+escapeHTML(cam.name)+'</option>';
+  }).join("");
+  select.value=current;
+}
+
+async function searchPlates() {
+  const form=new FormData(byId("plateSearchForm"));
+  const q=new URLSearchParams();
+  const plate=String(form.get("plate")||"").trim();
+  const camera=String(form.get("camera_id")||"").trim();
+  if(plate)q.set("plate",plate);
+  if(camera)q.set("camera_id",camera);
+  if(form.get("alert_only")==="on")q.set("alert_only","true");
+  q.set("limit","250");
+  const result=await api("/api/v1/events/plates?"+q.toString());
+  byId("plateSearchInfo").textContent=result.count+" passagem(ns) encontrada(s) · "+result.total_events+" evento(s) armazenado(s)";
+  byId("plateEvents").innerHTML=(result.items||[]).map(function(ev){
+    const attrs=ev.attributes||{};
+    const plateText=attrs.normalized_text||attrs.raw_text||"—";
+    const camera=state.cameras[ev.camera_id];
+    const alert=ev.alert?'<span class="pill alert-pill">ALERTA</span> ':"";
+    const label=ev.alert_label?'<span class="alert-label">'+escapeHTML(ev.alert_label)+'</span>':"";
+    const evidence=ev.snapshot_ref?'<button class="secondary plate-evidence" data-event="'+escapeHTML(ev.event_id)+'">Foto</button>':"";
+    return '<article class="plate-event '+(ev.alert?"plate-alert":"")+'"><div class="plate-main">'+alert+'<strong class="plate-number">'+escapeHTML(plateText)+'</strong>'+label+'</div>'+
+      '<div class="muted small">'+escapeHTML(camera?camera.name:ev.camera_id)+' · '+new Date(ev.observed_at).toLocaleString()+'</div>'+
+      '<div class="plate-meta"><span>conf. '+Math.round(Number(ev.confidence||0)*100)+'%</span><span>'+escapeHTML(attrs.direction||"")+'</span><span>'+escapeHTML(attrs.lane||"")+'</span>'+evidence+'</div></article>';
+  }).join("")||'<div class="empty compact">Nenhuma passagem encontrada.</div>';
+}
+
+async function showPlateEvidence(eventID) {
+  byId("snapshotImage").hidden=true;
+  byId("snapshotLoading").hidden=false;
+  byId("snapshotLoading").textContent="Carregando evidência...";
+  byId("snapshotDialog").showModal();
+  try{
+    const response=await fetch("/api/v1/events/"+encodeURIComponent(eventID)+"/evidence",{headers:{Authorization:"Bearer "+state.token}});
+    if(!response.ok){const d=await response.json().catch(function(){return{};});throw new Error(d.error||("HTTP "+response.status));}
+    const blob=await response.blob();
+    const url=URL.createObjectURL(blob);
+    const image=byId("snapshotImage");
+    image.onload=function(){URL.revokeObjectURL(url);};
+    image.src=url;image.hidden=false;byId("snapshotLoading").hidden=true;
+  }catch(err){byId("snapshotLoading").textContent=err.message;}
+}
+
+async function loadHotlist() {
+  if(!can("evidence"))return;
+  const result=await api("/api/v1/hotlist");
+  byId("hotlistList").innerHTML=(result.items||[]).map(function(item){
+    return '<div class="admin-row hotlist-row" data-hotlist="'+escapeHTML(item.id)+'"><div><strong class="plate-number">'+escapeHTML(item.plate)+'</strong><div class="muted small">'+escapeHTML(item.label||"")+'</div></div>'+
+      '<label class="check"><input class="hotlist-enabled" type="checkbox" '+(item.enabled?"checked":"")+'> ativo</label>'+
+      '<div class="toolbar"><button class="secondary hotlist-save">Salvar</button><button class="danger hotlist-delete">Excluir</button></div></div>';
+  }).join("")||'<div class="empty compact">Hotlist vazia.</div>';
+}
+
+async function openPlates() {
+  if(!state.token){byId("tokenDialog").showModal();return;}
+  populatePlateCameraFilter();
+  byId("hotlistSection").hidden=!can("evidence");
+  byId("platesDialog").showModal();
+  try{
+    await searchPlates();
+    if(can("evidence"))await loadHotlist();
+  }catch(err){notice(err.message,true);}
+}
+
 byId("authBtn").onclick = async function () {
   if (state.principal) {
     try { await api("/api/v1/auth/logout",{method:"POST",body:"{}"}); } catch (_) {}
@@ -593,6 +669,8 @@ byId("authBtn").onclick = async function () {
   }
   byId("tokenDialog").showModal();
 };
+byId("platesBtn").onclick=openPlates;
+byId("closePlates").onclick=function(){byId("platesDialog").close();};
 byId("mosaicBtn").onclick = function(){ if(!state.token){byId("tokenDialog").showModal();return;} byId("mosaicPanel").hidden=false; renderMosaic(state.mosaicSize); };
 byId("closeMosaic").onclick=function(){destroyMosaic();byId("mosaicPanel").hidden=true;};
 byId("systemBtn").onclick=function(){ if(!state.token){byId("tokenDialog").showModal();return;} showSystem(); };
@@ -690,6 +768,29 @@ byId("refreshExports").onclick=function(){loadExports().catch(function(err){noti
 byId("refreshAudit").onclick=function(){loadAudit().catch(function(err){notice(err.message,true);});};
 byId("verifyAudit").onclick=async function(){try{const r=await api("/api/v1/audit/verify");notice(r.valid?"Cadeia de auditoria íntegra.":"Auditoria inválida.",!r.valid);}catch(err){notice(err.message,true);}};
 byId("exportsList").onclick=function(e){const b=e.target.closest("[data-export]");if(b)downloadExport(b.dataset.export).catch(function(err){notice(err.message,true);});};
+
+byId("plateSearchForm").onsubmit=function(e){e.preventDefault();searchPlates().catch(function(err){notice(err.message,true);});};
+byId("plateEvents").onclick=function(e){const b=e.target.closest("[data-event]");if(b)showPlateEvidence(b.dataset.event);};
+byId("hotlistForm").onsubmit=async function(e){
+  e.preventDefault();const form=new FormData(e.target);
+  try{await api("/api/v1/hotlist",{method:"POST",body:JSON.stringify({plate:form.get("plate"),label:form.get("label"),enabled:true})});e.target.reset();await loadHotlist();notice("Placa adicionada à hotlist.",false);}
+  catch(err){notice(err.message,true);}
+};
+byId("refreshHotlist").onclick=function(){loadHotlist().catch(function(err){notice(err.message,true);});};
+byId("hotlistList").onclick=async function(e){
+  const row=e.target.closest("[data-hotlist]");if(!row)return;const id=row.dataset.hotlist;
+  try{
+    if(e.target.classList.contains("hotlist-save")){
+      const plate=row.querySelector(".plate-number").textContent;
+      const label=row.querySelector(".muted").textContent;
+      await api("/api/v1/hotlist/"+encodeURIComponent(id),{method:"PUT",body:JSON.stringify({plate:plate,label:label,enabled:row.querySelector(".hotlist-enabled").checked})});
+    }
+    if(e.target.classList.contains("hotlist-delete")&&confirm("Remover esta placa da hotlist?")){
+      await api("/api/v1/hotlist/"+encodeURIComponent(id),{method:"DELETE"});
+    }
+    await loadHotlist();
+  }catch(err){notice(err.message,true);}
+};
 
 health();
 updateIdentityUI();

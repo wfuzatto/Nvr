@@ -22,7 +22,7 @@ import (
 	"github.com/wfuzatto/Nvr/internal/webrtclive"
 )
 
-const version = "0.5.0-dev"
+const version = "0.6.0-dev"
 
 func main() {
 	cfg, err := config.Load()
@@ -46,6 +46,8 @@ func main() {
 	if err != nil { log.Fatalf("camera store: %v", err) }
 	eventStore, err := store.OpenFileEventStore(cfg.EventDBFile)
 	if err != nil { log.Fatalf("event store: %v", err) }
+	hotlistStore, err := store.OpenFileHotlistStore(cfg.HotlistFile)
+	if err != nil { log.Fatalf("hotlist store: %v", err) }
 	authManager, err := security.OpenAuthManager(cfg.UsersFile, adminToken)
 	if err != nil { log.Fatalf("auth manager: %v", err) }
 	auditLog, err := audit.Open(cfg.AuditFile)
@@ -79,7 +81,7 @@ func main() {
 		Cameras: cameraStore, Media: mediaManager, Live: liveManager, WebRTC: webRTCManager,
 	})
 	httpapi.AttachPluginRoutes(api, httpapi.PluginDependencies{
-		Token: pluginToken, Events: eventStore, EvidenceDir: cfg.EvidenceDir,
+		Token: pluginToken, Events: eventStore, EvidenceDir: cfg.EvidenceDir, Hotlist: hotlistStore,
 	})
 
 	server := &http.Server{
