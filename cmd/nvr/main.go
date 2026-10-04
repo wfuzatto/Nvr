@@ -12,6 +12,7 @@ import (
 
 	"github.com/wfuzatto/Nvr/internal/audit"
 	"github.com/wfuzatto/Nvr/internal/config"
+	"github.com/wfuzatto/Nvr/internal/evidence"
 	"github.com/wfuzatto/Nvr/internal/framebroker"
 	"github.com/wfuzatto/Nvr/internal/httpapi"
 	"github.com/wfuzatto/Nvr/internal/live"
@@ -55,6 +56,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("audit log: %v", err)
 	}
+	evidenceManager, err := evidence.NewManager(cfg.StorageDir, cfg.ExportsDir, cameraStore)
+	if err != nil {
+		log.Fatalf("evidence manager: %v", err)
+	}
 
 	appCtx, appCancel := context.WithCancel(context.Background())
 	defer appCancel()
@@ -78,7 +83,7 @@ func main() {
 
 	api := httpapi.New(httpapi.Dependencies{
 		Config: cfg, Version: version, AdminToken: adminToken,
-		SecretBox: box, Auth: authManager, Audit: auditLog, Cameras: cameraStore, Media: mediaManager, Live: liveManager, WebRTC: webRTCManager,
+		SecretBox: box, Auth: authManager, Audit: auditLog, Evidence: evidenceManager, Cameras: cameraStore, Media: mediaManager, Live: liveManager, WebRTC: webRTCManager,
 	})
 
 	server := &http.Server{
