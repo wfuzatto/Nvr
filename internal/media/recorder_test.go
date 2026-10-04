@@ -24,7 +24,12 @@ func TestRecorderRotatesOnKeyframe(t *testing.T) {
 	if completed == nil { t.Fatal("expected completed segment") }
 	if completed.Bytes == 0 || completed.SHA256 == "" || completed.FramesPath == "" { t.Fatalf("invalid segment: %+v", completed) }
 	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(completed.Path))); err != nil { t.Fatal(err) }
-	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(completed.FramesPath))); err != nil { t.Fatal(err) }
+	frameInfo, err := os.Stat(filepath.Join(root, filepath.FromSlash(completed.FramesPath)))
+	if err != nil { t.Fatal(err) }
+	wantIndexBytes := int64(FrameIndexHeaderSize + 2*FrameIndexRecordSize)
+	if frameInfo.Size() != wantIndexBytes {
+		t.Fatalf("frame index size=%d want=%d", frameInfo.Size(), wantIndexBytes)
+	}
 
 	last, err := r.Close()
 	if err != nil { t.Fatal(err) }
