@@ -45,3 +45,19 @@ func TestWSSEEnvelopeDoesNotExposePlainPassword(t *testing.T) {
 	if strings.Contains(text,"TopSecret123") { t.Fatal("plain password leaked in WS-Security envelope") }
 	if !strings.Contains(text,"PasswordDigest") || !strings.Contains(text,"UsernameToken") { t.Fatalf("invalid envelope: %s",text) }
 }
+
+func TestParseCapabilities(t *testing.T) {
+	payload := []byte(`<Envelope><Body><GetCapabilitiesResponse><Capabilities>
+	<Media><XAddr>http://10.0.0.1/onvif/media</XAddr></Media>
+	<PTZ><XAddr>http://10.0.0.1/onvif/ptz</XAddr></PTZ>
+	</Capabilities></GetCapabilitiesResponse></Body></Envelope>`)
+	services, err := parseCapabilities(payload)
+	if err != nil { t.Fatal(err) }
+	if len(services) != 2 { t.Fatalf("services=%v", services) }
+	foundMedia, foundPTZ := false, false
+	for _, service := range services {
+		if service.Namespace == nsMedia && service.XAddr == "http://10.0.0.1/onvif/media" { foundMedia = true }
+		if service.Namespace == nsPTZ && service.XAddr == "http://10.0.0.1/onvif/ptz" { foundPTZ = true }
+	}
+	if !foundMedia || !foundPTZ { t.Fatalf("missing capabilities: %+v", services) }
+}
