@@ -44,8 +44,16 @@ jobs:
           test -n "$HLS_FILE"
           cp "$HLS_FILE" internal/webui/static/hls.min.js
 
+      - name: Validate embedded JavaScript
+        run: |
+          node --check internal/webui/static/app.js
+          node --check internal/webui/static/hls.min.js
+
       - name: Test with dependency resolution disabled
         run: go test ./...
+
+      - name: Enforce offline runtime policy
+        run: sh scripts/verify-offline.sh
 
       - name: Build offline Linux binaries
         env:
@@ -95,7 +103,7 @@ jobs:
             echo "Offline binaries already match this source."
             exit 0
           fi
-          git commit -m "build: refresh offline binaries [skip ci]"
+          git commit -m "build: refresh offline runtime artifacts [skip ci]"
           git push
 
       - uses: actions/upload-artifact@v4
