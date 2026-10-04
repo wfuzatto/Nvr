@@ -57,3 +57,44 @@ Consulte:
 ## Status
 
 Fase 0 — arquitetura e contratos.
+
+
+## Implementação atual
+
+O desenvolvimento começou pelo **core offline-first**, sem dependências de terceiros no código Go.
+
+Já disponível:
+
+- servidor HTTP/API em Go;
+- console web embutido no próprio binário;
+- autenticação administrativa por token local;
+- armazenamento atômico de câmeras em disco;
+- credenciais RTSP criptografadas com AES-GCM;
+- CRUD de câmeras;
+- probe RTSP nativo com OPTIONS/DESCRIBE;
+- autenticação RTSP Basic e Digest/MD5;
+- leitura de SDP, tracks de vídeo/áudio e métodos suportados;
+- health/readiness;
+- unit tests;
+- build Linux amd64/arm64;
+- validação de build com GOPROXY/GOSUMDB desligados.
+
+### Executar
+
+```bash
+go run ./cmd/nvr
+```
+
+No primeiro boot o NVR gera um token administrador e uma chave mestra em `./data`.
+
+A interface fica disponível em `http://IP_DO_SERVIDOR:8080`.
+
+### Verificar independência da Internet
+
+```bash
+make offline-check
+```
+
+Veja também `OFFLINE.md`.
+
+> O media engine de gravação ainda não foi declarado como pronto. FFmpeg/GStreamer/PostgreSQL não serão exigidos até que seus artefatos offline façam parte do pacote da aplicação. Isso impede instalações parcialmente dependentes da Internet.
