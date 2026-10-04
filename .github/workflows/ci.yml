@@ -6,6 +6,7 @@ on:
     paths-ignore:
       - "offline/bin/**"
       - "offline/manifest.json"
+      - "offline/plugins/**"
       - "internal/webui/static/hls.min.js"
       - "internal/webui/static/HLS_LICENSE.txt"
       - "vendor/**"
@@ -28,6 +29,12 @@ jobs:
       GOSUMDB: "off"
     steps:
       - uses: actions/checkout@v4
+      - name: Checkout pinned Plate OCR source
+        uses: actions/checkout@v4
+        with:
+          repository: wfuzatto/Plate_ocr
+          ref: 6be42f0a20664b99f72613286fa5d98be502113b
+          path: _build/plate-ocr
       - uses: actions/setup-go@v5
         with:
           go-version: "1.24.x"
@@ -72,6 +79,13 @@ jobs:
           GOFLAGS: "-mod=vendor"
         run: sh scripts/verify-offline.sh
 
+      - name: Test pinned Plate OCR fully offline
+        working-directory: _build/plate-ocr
+        env:
+          GOPROXY: "off"
+          GOSUMDB: "off"
+        run: go test ./...
+
       - name: Build offline Linux binaries
         env:
           CGO_ENABLED: "0"
@@ -85,10 +99,21 @@ jobs:
           GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o offline/bin/linux-arm64/nvr ./cmd/nvr
           (cd offline/bin/linux-arm64 && sha256sum nvr > nvr.sha256)
 
+          mkdir -p offline/plugins/plate-ocr/linux-amd64 offline/plugins/plate-ocr/linux-arm64
+          (
+            cd _build/plate-ocr
+            GOPROXY=off GOSUMDB=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o "$GITHUB_WORKSPACE/offline/plugins/plate-ocr/linux-amd64/plate-ocr" ./cmd/plate-ocr
+            GOPROXY=off GOSUMDB=off CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o "$GITHUB_WORKSPACE/offline/plugins/plate-ocr/linux-arm64/plate-ocr" ./cmd/plate-ocr
+          )
+          (cd offline/plugins/plate-ocr/linux-amd64 && sha256sum plate-ocr > plate-ocr.sha256)
+          (cd offline/plugins/plate-ocr/linux-arm64 && sha256sum plate-ocr > plate-ocr.sha256)
+
       - name: Generate offline manifest
         run: |
           AMD64_SHA="$(cut -d' ' -f1 offline/bin/linux-amd64/nvr.sha256)"
           ARM64_SHA="$(cut -d' ' -f1 offline/bin/linux-arm64/nvr.sha256)"
+          PLATE_AMD64_SHA="$(cut -d' ' -f1 offline/plugins/plate-ocr/linux-amd64/plate-ocr.sha256)"
+          PLATE_ARM64_SHA="$(cut -d' ' -f1 offline/plugins/plate-ocr/linux-arm64/plate-ocr.sha256)"
           cat > offline/manifest.json <<EOF
           {
             "schema_version": 1,
@@ -106,6 +131,22 @@ jobs:
                 "arch": "arm64",
                 "path": "offline/bin/linux-arm64/nvr",
                 "sha256": "$ARM64_SHA"
+              },
+              {
+                "component": "plate-ocr",
+                "source_commit": "6be42f0a20664b99f72613286fa5d98be502113b",
+                "os": "linux",
+                "arch": "amd64",
+                "path": "offline/plugins/plate-ocr/linux-amd64/plate-ocr",
+                "sha256": "$PLATE_AMD64_SHA"
+              },
+              {
+                "component": "plate-ocr",
+                "source_commit": "6be42f0a20664b99f72613286fa5d98be502113b",
+                "os": "linux",
+                "arch": "arm64",
+                "path": "offline/plugins/plate-ocr/linux-arm64/plate-ocr",
+                "sha256": "$PLATE_ARM64_SHA"
               }
             ]
           }
@@ -116,7 +157,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add go.mod go.sum vendor offline/bin offline/manifest.json internal/webui/static/hls.min.js internal/webui/static/HLS_LICENSE.txt
+          git add go.mod go.sum vendor offline/bin offline/plugins offline/manifest.json internal/webui/static/hls.min.js internal/webui/static/HLS_LICENSE.txt
           if git diff --cached --quiet; then
             echo "Offline binaries already match this source."
             exit 0
@@ -129,6 +170,7 @@ jobs:
           name: nvr-offline-core
           path: |
             offline/bin/
+            offline/plugins/
             offline/manifest.json
             offline/install.sh
             offline/run-portable.sh
